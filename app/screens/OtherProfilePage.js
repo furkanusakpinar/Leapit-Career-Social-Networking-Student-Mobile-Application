@@ -401,8 +401,7 @@ export default function OtherProfilePage() {
   if (loading) {
     return (
       <View style={styles.centeredContainer}>
-        <Image source={require('../../assets/images/JobsCheckLogo.png')} style={styles.loadingLogo} />
-        <Image source={require('../../assets/images/JOBSCHECK.png')} style={styles.brandName} />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -593,30 +592,11 @@ const getStyles = (colors) => StyleSheet.create({
     marginTop: 20,
     marginBottom: 15,
   },
-  loadingLogo: {
-    width: 130,
-    height: 150,
-    marginTop: 20,
-    resizeMode: 'contain',
-  },
-  brandName: {
-    width: 250,
-    height: 52,
-    marginTop: 20,
-    resizeMode: 'contain',
-  },
   centeredContainer: {
     flex: 1,
     backgroundColor: colors.background,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  loadingText: {
-    color: '#FFD700',
-    textAlign: 'center',
-    marginTop: 15,
-    fontSize: 18,
-    fontWeight: 'bold',
   },
   notFoundText: {
     color: '#FF6347',
