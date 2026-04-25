@@ -1,0 +1,3 @@
+project.ext.react = [
+    enableHermes: false,  // önce false yap, dene
+]
