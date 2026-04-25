@@ -1,50 +1,59 @@
-# Welcome to your Expo app 👋
+# Leapit 🚀
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Leapit, iş arayanlar, şirketler ve eğitim kurumları için tasarlanmış modern, özellikli ve kullanıcı dostu bir iş ve sosyal ağ platformudur. React Native ve Expo kullanılarak geliştirilen bu uygulama, kullanıcıların iş ilanlarına başvurmasını, şirketlerin adayları yönetmesini ve profesyonel bir ağ kurmasını sağlar.
 
-## Get started
+## ✨ Temel Özellikler
 
-1. Install dependencies
+*   **İş İlanları & Yönetimi:** İş ilanları oluşturma, başvuruları inceleme ve onay süreci.
+*   **Çoklu Profil Desteği:** Öğrenci, Şirket ve Okul profilleri için özelleştirilmiş arayüzler.
+*   **Sosyal Ağ:** Diğer kullanıcılarla bağlantı kurma, paylaşım yapma ve etkileşimde bulunma.
+*   **Gerçek Zamanlı Mesajlaşma:** Firebase tabanlı anlık mesajlaşma sistemi.
+*   **Blog Sistemi:** Profesyonel içerikler paylaşma ve okuma alanı.
+*   **Bildirimler:** Önemli güncellemeler ve etkileşimler için anlık bildirim sistemi.
+*   **Karanlık/Aydınlık Mod:** Kullanıcı tercihine göre dinamik tema desteği.
 
-   ```bash
-   npm install
-   ```
+## 🛠️ Teknoloji Yığını
 
-2. Start the app
+*   **Frontend:** React Native, Expo
+*   **State Management:** Redux Toolkit
+*   **Backend & Veritabanı:** Firebase (Firestore, Auth)
+*   **Stil:** React Native StyleSheet (Premium Tasarım)
+*   **Diğer:** EmailJS (Bildirimler için), Cloudinary (Medya yönetimi)
 
-   ```bash
-   npx expo start
-   ```
+## 🚀 Başlangıç
 
-In the output, you'll find options to open the app in a
+Projeyi yerel ortamınızda çalıştırmak için şu adımları izleyin:
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
+### 1. Depoyu Klonlayın
 ```bash
-npm run reset-project
+git clone https://github.com/furkanusakpinar/Leapit.git
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### 2. Bağımlılıkları Yükleyin
+```bash
+npm install
+```
 
-## Learn more
+### 3. Çevresel Değişkenleri Ayarlayın
+Kök dizinde bir `.env` dosyası oluşturun ve aşağıdaki anahtarları kendi değerlerinizle doldurun:
 
-To learn more about developing your project with Expo, look at the following resources:
+```env
+EXPO_PUBLIC_FIREBASE_API_KEY=your_api_key
+EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=your_auth_domain
+EXPO_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=your_storage_bucket
+EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_messaging_id
+EXPO_PUBLIC_FIREBASE_APP_ID=your_app_id
+EXPO_PUBLIC_EMAILJS_PUBLIC_KEY=your_emailjs_key
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+### 4. Uygulamayı Başlatın
+```bash
+npx expo start
+```
 
-## Join the community
+## 📱 Ekran Görüntüleri
+*(Uygulamanızın ekran görüntülerini buraya ekleyebilirsiniz)*
 
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## 📄 Lisans
+Bu proje [MIT](LICENSE) lisansı altında lisanslanmıştır.
