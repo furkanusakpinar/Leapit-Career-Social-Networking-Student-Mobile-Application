@@ -84,6 +84,3 @@ npx expo start
     <img src="assets/images/IMG_2082.PNG" width="185" />
   </p>
 </div>
-
-## 📄 Lisans
-Bu proje [MIT](LICENSE) lisansı altında lisanslanmıştır.
