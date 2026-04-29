@@ -2,7 +2,7 @@
 
 # Leapit 🚀
 
-<img src="assets/images/LeapitLogo.png" width="250" />
+<img src="assets/images/LeapitLogo.png" width="125" />
 
 **Üniversite öğrencileri ve yeni mezunlar için tasarlanmış kapsamlı bir kariyer ve sosyal ağ platformu.**
 
