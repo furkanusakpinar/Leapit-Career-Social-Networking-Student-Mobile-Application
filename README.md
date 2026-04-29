@@ -1,6 +1,6 @@
 <div align="center">
 
-# Leapit 🚀
+# Leapit
 
 <img src="assets/images/LeapitLogo.png" width="125" />
 
