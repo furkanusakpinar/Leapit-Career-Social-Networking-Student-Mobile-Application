@@ -1,6 +1,18 @@
+<div align="center">
+
 # Leapit 🚀
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Expo](https://img.shields.io/badge/Expo-4630EB?style=for-the-badge&logo=expo&logoColor=white)](https://expo.dev/)
+[![React Native](https://img.shields.io/badge/React_Native-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://reactnative.dev/)
+[![Firebase](https://img.shields.io/badge/firebase-ffca28?style=for-the-badge&logo=firebase&logoColor=black)](https://firebase.google.com/)
+[![Redux](https://img.shields.io/badge/redux-%23593d88.svg?style=for-the-badge&logo=redux&logoColor=white)](https://redux.js.org/)
+[![TypeScript](https://img.shields.io/badge/typescript-%23007acc.svg?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+
 Leapit, iş arayanlar, şirketler ve eğitim kurumları için tasarlanmış modern, özellikli ve kullanıcı dostu bir iş ve sosyal ağ platformudur. React Native ve Expo kullanılarak geliştirilen bu uygulama, kullanıcıların iş ilanlarına başvurmasını, şirketlerin adayları yönetmesini ve profesyonel bir ağ kurmasını sağlar.
+
+</div>
+
 
 ## ✨ Temel Özellikler
 
@@ -53,7 +65,14 @@ npx expo start
 ```
 
 ## 📱 Ekran Görüntüleri
-*(Uygulamanızın ekran görüntülerini buraya ekleyebilirsiniz)*
 
-## 📄 Lisans
-Bu proje [MIT](LICENSE) lisansı altında lisanslanmıştır.
+<div align="center">
+  <img src="assets/images/IMG_2076.PNG" width="250" />
+  <img src="assets/images/IMG_2077.PNG" width="250" />
+  <img src="assets/images/IMG_2078.PNG" width="250" />
+  <img src="assets/images/IMG_2079.PNG" width="250" />
+  <img src="assets/images/IMG_2080.PNG" width="250" />
+  <img src="assets/images/IMG_2081.PNG" width="250" />
+  <img src="assets/images/IMG_2082.PNG" width="250" />
+</div>
+
