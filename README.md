@@ -72,12 +72,18 @@ npx expo start
 ## 📱 Ekran Görüntüleri
 
 <div align="center">
-  <img src="assets/images/IMG_2076.PNG" width="250" />
-  <img src="assets/images/IMG_2077.PNG" width="250" />
-  <img src="assets/images/IMG_2078.PNG" width="250" />
-  <img src="assets/images/IMG_2079.PNG" width="250" />
-  <img src="assets/images/IMG_2080.PNG" width="250" />
-  <img src="assets/images/IMG_2081.PNG" width="250" />
-  <img src="assets/images/IMG_2082.PNG" width="250" />
+  <p>
+    <img src="assets/images/IMG_2076.PNG" width="185" />
+    <img src="assets/images/IMG_2077.PNG" width="185" />
+    <img src="assets/images/IMG_2078.PNG" width="185" />
+    <img src="assets/images/IMG_2079.PNG" width="185" />
+  </p>
+  <p>
+    <img src="assets/images/IMG_2080.PNG" width="185" />
+    <img src="assets/images/IMG_2081.PNG" width="185" />
+    <img src="assets/images/IMG_2082.PNG" width="185" />
+  </p>
 </div>
 
+## 📄 Lisans
+Bu proje [MIT](LICENSE) lisansı altında lisanslanmıştır.
