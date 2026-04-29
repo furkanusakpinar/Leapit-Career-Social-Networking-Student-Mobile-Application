@@ -2,6 +2,10 @@
 
 # Leapit 🚀
 
+<img src="assets/images/LeapitLogo.png" width="250" />
+
+**Üniversite öğrencileri ve yeni mezunlar için tasarlanmış kapsamlı bir kariyer ve sosyal ağ platformu.**
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Expo](https://img.shields.io/badge/Expo-4630EB?style=for-the-badge&logo=expo&logoColor=white)](https://expo.dev/)
 [![React Native](https://img.shields.io/badge/React_Native-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://reactnative.dev/)
@@ -12,6 +16,7 @@
 Leapit, iş arayanlar, şirketler ve eğitim kurumları için tasarlanmış modern, özellikli ve kullanıcı dostu bir iş ve sosyal ağ platformudur. React Native ve Expo kullanılarak geliştirilen bu uygulama, kullanıcıların iş ilanlarına başvurmasını, şirketlerin adayları yönetmesini ve profesyonel bir ağ kurmasını sağlar.
 
 </div>
+
 
 
 ## ✨ Temel Özellikler
