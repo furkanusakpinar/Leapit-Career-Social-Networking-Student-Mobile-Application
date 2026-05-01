@@ -76,10 +76,10 @@ Follow these steps to run the project in your local environment:
 
 ```bash
 # Clone the repository
-git clone https://github.com/furkanusakpinar/PartnersApp.git
+git clone https://github.com/furkanusakpinar/Leapit-Career-Social-Networking-Student-Mobile-Application.git
 
 # Navigate to project folder
-cd PartnersApp
+cd Leapit
 
 # Install dependencies
 npm install
