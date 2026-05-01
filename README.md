@@ -74,6 +74,18 @@ Follow these steps to run the project in your local environment:
 
 <div align="left">
 
-**1. Clone the repository**
 ```bash
-git clone https://github.com/furkanusakpinar/Leapit.git
+# Clone the repository
+git clone https://github.com/furkanusakpinar/PartnersApp.git
+
+# Navigate to project folder
+cd PartnersApp
+
+# Install dependencies
+npm install
+
+# Start the application
+npx expo start
+```
+
+</div>
