@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
@@ -109,6 +110,25 @@ export default function StudentPage() {
   useEffect(() => {
     const fetchTypes = async () => {
       try {
+        // Son 20 dk içindeki ilerlemeyi geri yükle
+        const saved = await AsyncStorage.getItem('student_page_draft');
+        if (saved) {
+          const { data, timestamp } = JSON.parse(saved);
+          if (Date.now() - timestamp < 20 * 60 * 1000) {
+            if (data.schoolName) { setSchoolName(data.schoolName); setSchoolSearchText(data.schoolName); }
+            if (data.degree) { setDegree(data.degree); setDegreeSearchText(data.degree); }
+            if (data.branch) { setBranch(data.branch); setBranchSearchText(data.branch); }
+            if (data.startYear) { setStartYear(data.startYear); setStartYearSearchText(data.startYear); }
+            if (data.endYear) { setEndYear(data.endYear); setEndYearSearchText(data.endYear); }
+            if (data.isOver16 !== undefined) setIsOver16(data.isOver16);
+            if (data.birthDay) { setBirthDay(data.birthDay); setBirthDaySearchText(data.birthDay); }
+            if (data.birthMonth) { setBirthMonth(data.birthMonth); setBirthMonthSearchText(data.birthMonth); }
+            if (data.birthYear) { setBirthYear(data.birthYear); setBirthYearSearchText(data.birthYear); }
+          } else {
+            await AsyncStorage.removeItem('student_page_draft');
+          }
+        }
+
         const [degreeSnap, branchSnap, schoolSnap] = await Promise.all([
           getDoc(doc(db, 'degreeTypesMap', '3d0xnZf7UXCic5zPNzh4')),
           getDoc(doc(db, 'branchTypesMap', 'xocEo86W6vh0j8NloSOx')),
@@ -136,23 +156,31 @@ export default function StudentPage() {
     fetchTypes();
   }, []);
 
+  // Tüm form alanlarını otomatik kaydet
+  useEffect(() => {
+    const saveDraft = async () => {
+      try {
+        await AsyncStorage.setItem('student_page_draft', JSON.stringify({
+          data: { schoolName, degree, branch, startYear, endYear, isOver16, birthDay, birthMonth, birthYear },
+          timestamp: Date.now()
+        }));
+      } catch (_) {}
+    };
+    saveDraft();
+  }, [schoolName, degree, branch, startYear, endYear, isOver16, birthDay, birthMonth, birthYear]);
+
   const handleSave = async () => {
     if (!schoolName.trim() || !startYear.trim() || !endYear.trim()) {
       ToastAndroid.show('Lütfen yıldızlı alanları doldurun.', ToastAndroid.SHORT);
       return;
     }
     setIsLoading(true);
+    // Doğrudan Firebase'e yazmıyoruz, yerel taslakta (AsyncStorage) kalıyor.
     try {
-      const updateData = { schoolName, degree, branch, startYear, endYear, isOver16, profileCompleted: true };
-      if (!isOver16) updateData.birthDate = `${birthDay}-${birthMonth}-${birthYear}`;
-
-      await updateDoc(doc(db, 'Users', userId), updateData);
-      navigation.replace('CreatePage2');
-    } catch (e) {
-      ToastAndroid.show('Bir hata oluştu.', ToastAndroid.SHORT);
-    } finally {
-      setIsLoading(false);
-    }
+      await AsyncStorage.setItem('step1_completed', JSON.stringify({ completed: true, timestamp: Date.now() }));
+    } catch (_) {}
+    navigation.replace('CreatePage2');
+    setIsLoading(false);
   };
 
   if (pageLoading) return <StudentPageSkeleton />;

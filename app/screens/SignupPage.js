@@ -1,26 +1,84 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
-import { addDoc, collection, getDocs, query, where } from 'firebase/firestore';
-import { useEffect, useRef, useState } from 'react';
+import { addDoc, collection, deleteDoc, doc, getDocs, query, where } from 'firebase/firestore';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator, Animated,
     Dimensions,
     Easing,
     Image,
-    KeyboardAvoidingView, Platform,
+    KeyboardAvoidingView, Modal, Platform,
     Pressable,
     StyleSheet,
     Text, TextInput,
     View
 } from 'react-native';
+import { hashPassword } from '../utils/hash';
+
+const { width: WIN_W, height: WIN_H } = Dimensions.get('window');
+const SCREEN_WIDTH = WIN_W;
+
+const PARTICLE_COUNT = 15;
+const PARTICLE_SPEED = 30000;
+
+const randomBetween = (min, max) => Math.random() * (max - min) + min;
+
+const ParticleBackground = ({ color = 'rgba(255,255,255,0.8)' }) => {
+  const particles = useMemo(() =>
+    Array.from({ length: PARTICLE_COUNT }, (_, i) => ({
+      id: i,
+      x: new Animated.Value(randomBetween(0, WIN_W)),
+      y: new Animated.Value(randomBetween(0, WIN_H)),
+      size: randomBetween(6, 18),
+      opacity: new Animated.Value(randomBetween(0.25, 0.65)),
+      duration: randomBetween(PARTICLE_SPEED * 0.8, PARTICLE_SPEED * 1.4),
+    })),
+  []);
+
+  useEffect(() => {
+    const animateParticle = (p) => {
+      const nextX = randomBetween(0, WIN_W);
+      const nextY = randomBetween(0, WIN_H);
+      const nextOpacity = randomBetween(0.2, 0.6);
+      Animated.parallel([
+        Animated.timing(p.x, { toValue: nextX, duration: p.duration, useNativeDriver: true, easing: Easing.linear }),
+        Animated.timing(p.y, { toValue: nextY, duration: p.duration, useNativeDriver: true, easing: Easing.linear }),
+        Animated.timing(p.opacity, { toValue: nextOpacity, duration: p.duration / 2, useNativeDriver: true }),
+      ]).start(() => animateParticle(p));
+    };
+    particles.forEach(p => animateParticle(p));
+  }, []);
+
+  return (
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 0 }} pointerEvents="none">
+      {particles.map(p => (
+        <Animated.View
+          key={p.id}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: p.size,
+            height: p.size,
+            borderRadius: p.size / 2,
+            backgroundColor: color,
+            opacity: p.opacity,
+            transform: [{ translateX: p.x }, { translateY: p.y }],
+          }}
+        />
+      ))}
+    </View>
+  );
+};
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { useDispatch, useSelector } from 'react-redux';
 import { db } from '../../firebaseConfig';
-import { setUserId } from '../redux/userSlice';
+import { setUserId, setProfileStep } from '../redux/userSlice';
 import SignupSkeleton from '../skeleton/SignupSkeleton';
 import { lightTheme, darkTheme } from '../theme/colors';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH_UNUSED } = Dimensions.get('window');
 
 const SignupPage = () => {
     const insets = useSafeAreaInsets();
@@ -37,6 +95,59 @@ const SignupPage = () => {
     const navigation = useNavigation();
     const dispatch = useDispatch();
 
+    // BottomSheet state
+    const [sheetVisible, setSheetVisible] = useState(false);
+    const [pendingResume, setPendingResume] = useState(null); // { docId, step, existingDocId }
+    const sheetAnim = useRef(new Animated.Value(300)).current;
+    const backdropAnim = useRef(new Animated.Value(0)).current;
+
+    const openSheet = (data) => {
+        setPendingResume(data);
+        setSheetVisible(true);
+        Animated.parallel([
+            Animated.spring(sheetAnim, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }),
+            Animated.timing(backdropAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
+        ]).start();
+    };
+
+    const closeSheet = () => {
+        Animated.parallel([
+            Animated.timing(sheetAnim, { toValue: 300, duration: 220, useNativeDriver: true }),
+            Animated.timing(backdropAnim, { toValue: 0, duration: 220, useNativeDriver: true }),
+        ]).start(() => { setSheetVisible(false); setPendingResume(null); });
+    };
+
+    const handleResumeYes = async () => {
+        if (!pendingResume) return;
+        closeSheet();
+        dispatch(setUserId(pendingResume.docId));
+        dispatch(setProfileStep(pendingResume.step));
+        await AsyncStorage.removeItem('signup_attempt');
+        navigation.replace(pendingResume.step);
+    };
+
+    const handleResumeNo = async () => {
+        if (!pendingResume) return;
+        closeSheet();
+        setIsLoading(true);
+        try {
+            await deleteDoc(doc(db, 'Users', pendingResume.docId));
+            await AsyncStorage.multiRemove(['create_profile_draft', 'create_page2_draft', 'student_page_draft', 'step1_completed']);
+            const usersRef = collection(db, 'Users');
+            const hashedPassword = hashPassword(password);
+            const docRef = await addDoc(usersRef, {
+                fullName, email, password: hashedPassword, createdAt: new Date().toISOString()
+            });
+            dispatch(setUserId(docRef.id));
+            await AsyncStorage.removeItem('signup_attempt');
+            navigation.replace('CreateProfile');
+        } catch (e) {
+            Toast.show({ type: 'error', text1: 'Hata', text2: 'İşlem tamamlanamadı.' });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     const animValue1 = useRef(new Animated.Value(0)).current;
     const animValue2 = useRef(new Animated.Value(0)).current;
     const animValue3 = useRef(new Animated.Value(0)).current;
@@ -49,6 +160,18 @@ const SignupPage = () => {
 
         const prepareAuthPage = async () => {
             try {
+                // Son 20 dk içinde kayıt denemesi yapıldıysa e-postayı geri yükle
+                const saved = await AsyncStorage.getItem('signup_attempt');
+                if (saved) {
+                    const { email: savedEmail, timestamp } = JSON.parse(saved);
+                    const diffMs = Date.now() - timestamp;
+                    if (diffMs < 20 * 60 * 1000) {
+                        if (isMounted) setEmail(savedEmail);
+                    } else {
+                        await AsyncStorage.removeItem('signup_attempt');
+                    }
+                }
+
                 await new Promise(resolve => setTimeout(resolve, 1200));
 
                 if (isMounted) {
@@ -121,16 +244,55 @@ const SignupPage = () => {
         }
         setIsLoading(true);
         try {
+            await AsyncStorage.setItem('signup_attempt', JSON.stringify({ email, timestamp: Date.now() }));
+        } catch (_) {}
+        try {
             const usersRef = collection(db, 'Users');
             const q = query(usersRef, where('email', '==', email));
             const snapshot = await getDocs(q);
+
             if (!snapshot.empty) {
-                Toast.show({ type: 'error', text1: 'Hata', text2: 'E-posta kayıtlı.' });
-                setIsLoading(false);
-                return;
+                const existingDoc = snapshot.docs[0];
+                const existingData = existingDoc.data();
+
+                if (existingData.profileCompleted) {
+                    Toast.show({ type: 'error', text1: 'Hata', text2: 'Bu e-posta adresi zaten kullanılıyor.' });
+                    setIsLoading(false);
+                    return;
+                }
+
+                const createdAt = existingData.createdAt ? new Date(existingData.createdAt).getTime() : 0;
+                const elapsedMs = Date.now() - createdAt;
+                const TWENTY_MINUTES = 20 * 60 * 1000;
+
+                if (elapsedMs <= TWENTY_MINUTES) {
+                    // 20 dk içinde — BottomSheet sor
+                    let step = 'CreateProfile';
+                    try {
+                        const step1Raw = await AsyncStorage.getItem('step1_completed');
+                        if (step1Raw) {
+                            const parsed = JSON.parse(step1Raw);
+                            if (Date.now() - parsed.timestamp < TWENTY_MINUTES) {
+                                step = 'CreatePage2';
+                            }
+                        }
+                    } catch (_) {}
+                    setIsLoading(false);
+                    openSheet({ docId: existingDoc.id, step });
+                    return;
+                } else {
+                    // 20 dk geçmiş — sil ve yeniden kayıt et
+                    await deleteDoc(doc(db, 'Users', existingDoc.id));
+                    await AsyncStorage.multiRemove(['create_profile_draft', 'create_page2_draft', 'student_page_draft', 'step1_completed']);
+                }
             }
-            const docRef = await addDoc(usersRef, { fullName, email, password, createdAt: new Date().toISOString() });
+
+            const hashedPassword = hashPassword(password);
+            const docRef = await addDoc(usersRef, {
+                fullName, email, password: hashedPassword, createdAt: new Date().toISOString()
+            });
             dispatch(setUserId(docRef.id));
+            await AsyncStorage.removeItem('signup_attempt');
             navigation.replace('CreateProfile');
         } catch (error) {
             setIsLoading(false);
@@ -141,7 +303,9 @@ const SignupPage = () => {
     if (pageLoading) return <SignupSkeleton />;
 
     return (
-        <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
+            <ParticleBackground color={themeMode === 'dark' ? 'rgba(100,149,237,0.45)' : 'rgba(80,80,180,0.35)'} />
+            <SafeAreaView style={[styles.safeArea, { backgroundColor: 'transparent' }]} edges={['top', 'left', 'right']}>
             <KeyboardAvoidingView
                 style={styles.container}
                 behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -203,13 +367,37 @@ const SignupPage = () => {
                     </View>
                 </View>
             </KeyboardAvoidingView>
-            <Toast />
+
+
+            {/* BottomSheet Modal */}
+            <Modal transparent visible={sheetVisible} animationType="none" onRequestClose={closeSheet}>
+                <Animated.View style={[bsStyles.backdrop, { opacity: backdropAnim }]}>
+                    <Pressable style={{ flex: 1 }} onPress={closeSheet} />
+                </Animated.View>
+                <Animated.View style={[bsStyles.sheet, { backgroundColor: colors.cardBackground, borderColor: colors.border, transform: [{ translateY: sheetAnim }] }]}>
+                    <View style={bsStyles.handle} />
+                    <View style={[bsStyles.iconCircle, { backgroundColor: colors.primary + '22' }]}>
+                        <Text style={{ fontSize: 32 }}>⏱️</Text>
+                    </View>
+                    <Text style={[bsStyles.title, { color: colors.textMain }]}>Kaldığın Yerden Devam Et</Text>
+                    <Text style={[bsStyles.subtitle, { color: colors.textSub }]}>
+                        Bu e-posta ile yakın zamanda yarım bırakılmış{`\n`}bir kayıt bulundu. Devam etmek ister misin?
+                    </Text>
+                    <Pressable style={[bsStyles.btnYes, { backgroundColor: colors.primary }]} onPress={handleResumeYes}>
+                        <Text style={bsStyles.btnYesText}>Evet, Devam Et</Text>
+                    </Pressable>
+                    <Pressable style={[bsStyles.btnNo, { borderColor: colors.border }]} onPress={handleResumeNo}>
+                        <Text style={[bsStyles.btnNoText, { color: colors.textSub }]}>Hayır, Baştan Başla</Text>
+                    </Pressable>
+                </Animated.View>
+            </Modal>
         </SafeAreaView>
+        </View>
     );
 };
 
 const getStyles = (colors) => StyleSheet.create({
-    safeArea: { flex: 1, backgroundColor: colors.background },
+    safeArea: { flex: 1, backgroundColor: 'transparent' },
     container: { flex: 1 },
     content: { flex: 1, justifyContent: 'space-between' },
     topSection: {
@@ -250,6 +438,81 @@ const getStyles = (colors) => StyleSheet.create({
     hidePasswordIcon: { width: 20, height: 20 },
     button: { marginTop: 10, height: 55, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
     buttonText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
+});
+
+const bsStyles = StyleSheet.create({
+    backdrop: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.55)',
+    },
+    sheet: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        borderTopLeftRadius: 28,
+        borderTopRightRadius: 28,
+        paddingHorizontal: 24,
+        paddingBottom: 36,
+        paddingTop: 12,
+        borderTopWidth: 1,
+        borderLeftWidth: 1,
+        borderRightWidth: 1,
+        alignItems: 'center',
+        elevation: 20,
+    },
+    handle: {
+        width: 40,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: 'rgba(150,150,150,0.4)',
+        marginBottom: 20,
+    },
+    iconCircle: {
+        width: 72,
+        height: 72,
+        borderRadius: 36,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    title: {
+        fontSize: 20,
+        fontWeight: '700',
+        marginBottom: 10,
+        textAlign: 'center',
+    },
+    subtitle: {
+        fontSize: 14,
+        textAlign: 'center',
+        lineHeight: 22,
+        marginBottom: 28,
+    },
+    btnYes: {
+        width: '100%',
+        height: 52,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 12,
+    },
+    btnYesText: {
+        color: 'white',
+        fontWeight: '700',
+        fontSize: 16,
+    },
+    btnNo: {
+        width: '100%',
+        height: 52,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1.5,
+    },
+    btnNoText: {
+        fontWeight: '600',
+        fontSize: 15,
+    },
 });
 
 export default SignupPage;

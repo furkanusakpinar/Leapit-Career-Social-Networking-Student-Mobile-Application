@@ -3,8 +3,10 @@ import { doc, getDoc } from 'firebase/firestore';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Image,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   RefreshControl,
@@ -18,6 +20,7 @@ import { useSelector } from 'react-redux';
 import { db } from '../../firebaseConfig';
 import { lightTheme, darkTheme } from '../theme/colors';
 import { getCompanyLogoUri } from '../utils/getCompanyLogoUri';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const BACKEND_URL = 'http://141.11.109.234:3000';
 
@@ -100,11 +103,11 @@ const JobsDetail = () => {
         setAdvertiser(postData.advertiser || '');
         setCompany(postData.company || '');
         setJobTitle(postData.jobTitle || '');
-        setLocation(postData.location || '');
+        setLocation(postData.jobLocation || '');
         setCreatedAtData(postData.createdAt || null);
         setJobPolicy(postData.jobPolicy || '');
 
-        setTabData([{ id: docSnap.id, ...postData, ...uData }]);
+        setTabData([{ id: docSnap.id, ...uData, ...postData }]);
       } else {
         setError('İlan bulunamadı.');
       }
@@ -117,6 +120,20 @@ const JobsDetail = () => {
   }, [jobsId, refreshing]);
 
   useEffect(() => { fetchJobsPosts(); }, [fetchJobsPosts]);
+
+  const handleMessageUser = () => {
+    if (!jobPosterUserData) return;
+    if (jobPosterUserData.id === userId) {
+      Alert.alert('Bilgi', 'Kendi ilanınıza mesaj gönderemezsiniz.');
+      return;
+    }
+    navigation.navigate('SendMessage', {
+      recipientId: jobPosterUserData.id,
+      recipientName: jobPosterUserData.fullName,
+      recipientJob: jobPosterUserData.job || jobPosterUserData.profession,
+      recipientProfileImageUrl: jobPosterUserData.profileImageUrl,
+    });
+  };
 
   
   if (loading && !refreshing) {
@@ -149,26 +166,26 @@ const JobsDetail = () => {
                 />
                 <View style={styles.headerText}>
                   <Text style={styles.companyName}>{item.company}</Text>
-                  <Text style={styles.jobTitleText}>{item.jobTitle}</Text>
+                  <Text style={styles.descText}>{item.jobTitle}</Text>
                 </View>
               </View>
 
               <Text style={styles.subInfoText}>
-                {item.location} • {timeAgo(item.createdAt)} • {item.applications?.length || 0} başvuru
+                {item.jobLocation} • {timeAgo(item.createdAt)} • {item.applications?.length || 0} başvuru
               </Text>
 
               {}
               <View style={styles.detailItem}>
-                <Image source={require('../../assets/images/WorkerBack.png')} style={styles.iconTiny} />
+                <MaterialCommunityIcons name="briefcase-outline" size={20} color={colors.iconTint} style={{ marginRight: 10 }} />
                 <Text style={styles.detailText}>{item.wage ? `${item.wage} • ` : ''}{item.jobPolicy} • {item.jobType}</Text>
               </View>
 
               <View style={styles.detailItem}>
-                <Image source={require('../../assets/images/listCheck.png')} style={styles.iconTiny} />
-                <Text style={styles.detailText} numberOfLines={2}>Yetenekler: {item.jobDescription}</Text>
+                <MaterialCommunityIcons name="clipboard-text-outline" size={20} color={colors.iconTint} style={{ marginRight: 10 }} />
+                <Text style={styles.detailText} numberOfLines={2}>Yetenekler: {item.jobSummary}</Text>
               </View>
 
-              {}
+              {/* Button Group */}
               <View style={styles.buttonGroup}>
                 <Pressable style={[styles.btn, styles.btnPrimary]} onPress={() => setModalVisible(true)}>
                   <Text style={styles.btnTextWhite}>Başvur</Text>
@@ -178,7 +195,7 @@ const JobsDetail = () => {
                 </Pressable>
               </View>
 
-              {}
+              {/* Hiring Team */}
               <Text style={styles.sectionTitle}>İşe alım takımı</Text>
               <View style={styles.teamCard}>
                 <Image
@@ -189,7 +206,7 @@ const JobsDetail = () => {
                   <Text style={styles.teamName}>{item.fullName}</Text>
                   <Text style={styles.teamBio} numberOfLines={1}>{item.bio || 'Biyografi yok'}</Text>
                 </View>
-                <Pressable style={styles.miniMsgBtn}>
+                <Pressable style={styles.miniMsgBtn} onPress={handleMessageUser}>
                   <Text style={styles.btnTextBlue}>Mesaj</Text>
                 </Pressable>
               </View>

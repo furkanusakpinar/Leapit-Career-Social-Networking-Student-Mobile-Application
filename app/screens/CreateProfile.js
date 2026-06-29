@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
@@ -48,6 +49,22 @@ const CreateProfileScreen = ({ route }) => {
         let isMounted = true;
         const prepareData = async () => {
             try {
+                // Son 20 dk içindeki ilerlemeyi geri yükle
+                const saved = await AsyncStorage.getItem('create_profile_draft');
+                if (saved) {
+                    const { data, timestamp } = JSON.parse(saved);
+                    if (Date.now() - timestamp < 20 * 60 * 1000) {
+                        if (isMounted) {
+                            if (data.profession) setProfession(data.profession);
+                            if (data.employmentType) setEmploymentType(data.employmentType);
+                            if (data.company) setCompany(data.company);
+                            if (data.school) setSchool(data.school);
+                        }
+                    } else {
+                        await AsyncStorage.removeItem('create_profile_draft');
+                    }
+                }
+
                 const [profSnap, empSnap, compSnap, schSnap] = await Promise.all([
                     getDoc(doc(db, 'professionsMap', 'TnXrQEcewZkPCfDZOqrZ')),
                     getDoc(doc(db, 'employmentTypesMap', 'S7nu6UvZrbYBRL5E4D2Z')),
@@ -80,6 +97,19 @@ const CreateProfileScreen = ({ route }) => {
         return () => { isMounted = false; };
     }, []);
 
+    // Form değişikliklerini otomatik kaydet
+    useEffect(() => {
+        const saveDraft = async () => {
+            try {
+                await AsyncStorage.setItem('create_profile_draft', JSON.stringify({
+                    data: { profession, employmentType, company, school },
+                    timestamp: Date.now()
+                }));
+            } catch (_) {}
+        };
+        saveDraft();
+    }, [profession, employmentType, company, school]);
+
     const showToast = (message) => {
         Toast.show({ type: 'custom_error', text1: 'Hata', text2: message });
     };
@@ -101,30 +131,16 @@ const CreateProfileScreen = ({ route }) => {
             return showToast('Lütfen yıldızlı alanları doldurun.');
         }
         setIsLoading(true);
+        // Doğrudan Firebase'e yazmıyoruz, yerel taslakta (AsyncStorage) kalıyor.
         try {
-            const userDocRef = doc(db, 'Users', userId);
-            await updateDoc(userDocRef, {
-                profession, employmentType, company, school,
-                profileCompleted: true, updatedAt: new Date()
-            });
-            const userDoc = await getDoc(userDocRef);
-            navigation.replace('CreatePage2', { userData: userDoc.data() });
-        } catch (error) {
-            showToast('Bir hata oluştu.');
-        } finally {
-            setIsLoading(false);
-        }
+            await AsyncStorage.setItem('step1_completed', JSON.stringify({ completed: true, timestamp: Date.now() }));
+        } catch (_) {}
+        navigation.replace('CreatePage2');
+        setIsLoading(false);
     };
 
     if (pageLoading) return <CreateProfileSkeleton />;
 
-    const toastConfig = {
-        custom_error: (props) => (
-            <View style={styles.toastContainer}>
-                <Text style={styles.toastText}>{props.text2}</Text>
-            </View>
-        )
-    };
 
     const SuggestionList = ({ data, onPress, isTop }) => (
         <View style={[styles.suggestionBox, isTop && styles.suggestionBoxTop]}>
@@ -191,7 +207,7 @@ const CreateProfileScreen = ({ route }) => {
                     </View>
 
                     <Text style={styles.titleText}>En son Şirket *</Text>
-                    <View style={[styles.fieldWrapper, { zIndex: 30 }]}>
+                    <View style={[styles.fieldWrapper, { zIndex: 10 }]}>
                         <TextInput
                             style={styles.input}
                             placeholder="Şirket adı"
@@ -206,7 +222,7 @@ const CreateProfileScreen = ({ route }) => {
                     </View>
 
                     <Text style={styles.titleText}>Okul / Üniversite *</Text>
-                    <View style={[styles.fieldWrapper, { zIndex: 20 }]}>
+                    <View style={[styles.fieldWrapper, { zIndex: 100 }]}>
                         <TextInput
                             style={styles.input}
                             placeholder="Mezun olduğunuz okul"
@@ -232,7 +248,7 @@ const CreateProfileScreen = ({ route }) => {
                     </TouchableOpacity>
                 </View>
             </KeyboardAvoidingView>
-            <Toast config={toastConfig} />
+
         </View>
     );
 };
@@ -280,10 +296,12 @@ const getStyles = (colors) => StyleSheet.create({
         borderLeftWidth: 1,
         borderRightWidth: 1,
         borderColor: colors.border,
+        overflow: 'visible',
     },
     fieldWrapper: {
         position: 'relative',
-        marginBottom: 15
+        marginBottom: 15,
+        zIndex: 1,
     },
     titleText: {
         color: colors.textSub,
@@ -327,17 +345,24 @@ const getStyles = (colors) => StyleSheet.create({
     },
     suggestionBox: {
         position: 'absolute',
-        top: 60,
+        top: '100%',
         left: 0,
         right: 0,
-        backgroundColor: colors.background,
+        backgroundColor: colors.cardBackground,
         borderRadius: 10,
         borderWidth: 1,
         borderColor: colors.border,
-        zIndex: 1000
+        zIndex: 9999,
+        elevation: 10,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
     },
     suggestionBoxTop: {
-        top: -160
+        top: undefined,
+        bottom: '100%',
+        marginBottom: 4,
     },
     suggestionItem: {
         padding: 14,
@@ -348,19 +373,7 @@ const getStyles = (colors) => StyleSheet.create({
         color: colors.textMain,
         fontSize: 14
     },
-    toastContainer: {
-        backgroundColor: colors.cardBackground,
-        padding: 15,
-        borderRadius: 10,
-        width: '90%',
-        alignSelf: 'center',
-        borderWidth: 1,
-        borderColor: colors.border
-    },
-    toastText: {
-        color: colors.textMain,
-        textAlign: 'center'
-    }
+
 });
 
 export default CreateProfileScreen;

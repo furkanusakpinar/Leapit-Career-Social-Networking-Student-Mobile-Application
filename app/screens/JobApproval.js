@@ -11,7 +11,8 @@ import {
   ScrollView,
   StatusBar,
 } from 'react-native';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { addDoc, collection, doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
+
 import { db } from '../../firebaseConfig';
 import { useSelector } from 'react-redux';
 import { sendEmail } from '../utils/emailjs';
@@ -89,6 +90,26 @@ const JobApproval = () => {
         status: approve ? 'active' : 'rejected'
       });
 
+      // ── Uygulama içi bildirim gönder ──────────────────────────────────
+      const targetUserId = job.userId || job.advertiserId;
+      if (targetUserId) {
+        try {
+          const notifRef = collection(db, 'Users', targetUserId, 'notifications');
+          await addDoc(notifRef, {
+            type: approve ? 'jobApproved' : 'jobRejected',
+            content: approve
+              ? `"${job.jobTitle}" ilanınız onaylandı ve yayına alındı. 🎉`
+              : `"${job.jobTitle}" ilanınız topluluk kurallarına uymadığı için reddedildi.`,
+            jobId,
+            isRead: false,
+            createdAt: serverTimestamp(),
+          });
+        } catch (notifErr) {
+          console.warn('Bildirim gönderilemedi:', notifErr);
+        }
+      }
+      // ─────────────────────────────────────────────────────────────────
+
       const userParams = {
         user_name: job.advertiserName,
         to_email: job.userEmail,
@@ -111,7 +132,7 @@ const JobApproval = () => {
 
       Alert.alert(
         "İşlem Başarılı",
-        `İlan ${approve ? 'onaylandı ve yayına alındı' : 'reddedildi'}. Kullanıcıya bilgilendirme maili gönderildi.`,
+        `İlan ${approve ? 'onaylandı ve yayına alındı' : 'reddedildi'}. Kullanıcıya bilgilendirme maili ve uygulama bildirimi gönderildi.`,
         [{ text: 'Tamam', onPress: () => navigation.goBack() }]
       );
     } catch (error) {
@@ -151,11 +172,43 @@ const JobApproval = () => {
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
-        {}
-        <View style={styles.statusBadge}>
-          <MaterialCommunityIcons name="clock-outline" size={18} color="#F59E0B" />
-          <Text style={styles.statusText}>Onay Bekliyor</Text>
-        </View>
+        {/* Status Badge */}
+        {job && (
+          <View style={[
+            styles.statusBadge,
+            job.status === 'active' && { backgroundColor: 'rgba(16, 185, 129, 0.12)' },
+            job.status === 'rejected' && { backgroundColor: 'rgba(239, 68, 68, 0.12)' },
+          ]}>
+            <MaterialCommunityIcons 
+              name={
+                job.status === 'active' 
+                  ? "check-circle-outline" 
+                  : job.status === 'rejected' 
+                    ? "close-circle-outline" 
+                    : "clock-outline"
+              } 
+              size={18} 
+              color={
+                job.status === 'active' 
+                  ? "#10B981" 
+                  : job.status === 'rejected' 
+                    ? "#EF4444" 
+                    : "#F59E0B"
+              } 
+            />
+            <Text style={[
+              styles.statusText,
+              job.status === 'active' && { color: '#10B981' },
+              job.status === 'rejected' && { color: '#EF4444' },
+            ]}>
+              {job.status === 'active' 
+                ? "Onaylandı" 
+                : job.status === 'rejected' 
+                  ? "Reddedildi" 
+                  : "Onay Bekliyor"}
+            </Text>
+          </View>
+        )}
 
         {job ? (
           <>
@@ -246,25 +299,39 @@ const JobApproval = () => {
             </View>
 
             {}
-            <View style={styles.btnRow}>
-              <Pressable
-                style={({ pressed }) => [styles.btn, styles.approveBtn, { opacity: pressed ? 0.8 : 1 }]}
-                onPress={() => handleAction(true)}
-                disabled={actionLoading}
-              >
-                <MaterialCommunityIcons name="check-circle-outline" size={22} color="white" />
-                <Text style={styles.btnText}>ONAYLA</Text>
-              </Pressable>
+            {}
+            {job.status === 'pending' ? (
+              <View style={styles.btnRow}>
+                <Pressable
+                  style={({ pressed }) => [styles.btn, styles.approveBtn, { opacity: pressed ? 0.8 : 1 }]}
+                  onPress={() => handleAction(true)}
+                  disabled={actionLoading}
+                >
+                  <MaterialCommunityIcons name="check-circle-outline" size={22} color="white" />
+                  <Text style={styles.btnText}>ONAYLA</Text>
+                </Pressable>
 
-              <Pressable
-                style={({ pressed }) => [styles.btn, styles.rejectBtn, { opacity: pressed ? 0.8 : 1 }]}
-                onPress={() => handleAction(false)}
-                disabled={actionLoading}
-              >
-                <MaterialCommunityIcons name="close-circle-outline" size={22} color="white" />
-                <Text style={styles.btnText}>REDDET</Text>
-              </Pressable>
-            </View>
+                <Pressable
+                  style={({ pressed }) => [styles.btn, styles.rejectBtn, { opacity: pressed ? 0.8 : 1 }]}
+                  onPress={() => handleAction(false)}
+                  disabled={actionLoading}
+                >
+                  <MaterialCommunityIcons name="close-circle-outline" size={22} color="white" />
+                  <Text style={styles.btnText}>REDDET</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <View style={[styles.infoBanner, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                <MaterialCommunityIcons 
+                  name="information-outline" 
+                  size={22} 
+                  color={colors.textSub} 
+                />
+                <Text style={[styles.infoBannerText, { color: colors.textSub }]}>
+                  Bu ilan daha önce {job.status === 'active' ? 'onaylanmış ve yayına alınmış' : 'reddedilmiş'}.
+                </Text>
+              </View>
+            )}
 
             {actionLoading && (
               <View style={styles.actionLoadingWrap}>
@@ -367,6 +434,20 @@ const getStyles = (colors) => StyleSheet.create({
     justifyContent: 'center',
     marginTop: 20,
     gap: 10,
+  },
+  infoBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 15,
+    borderWidth: 1,
+    marginTop: 10,
+    gap: 10,
+  },
+  infoBannerText: {
+    fontSize: 14,
+    fontWeight: '500',
+    flex: 1,
   },
 });
 

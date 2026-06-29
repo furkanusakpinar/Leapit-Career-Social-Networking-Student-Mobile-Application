@@ -1,4 +1,5 @@
-import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import axios from 'axios';
 import * as ImagePicker from 'expo-image-picker';
@@ -16,11 +17,10 @@ import {
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux'; 
 import { db } from '../../firebaseConfig';
-import { setAuth } from '../redux/userSlice';
+import { setAuth, setProfileStep } from '../redux/userSlice';
 import CreateProfile2Skeleton from '../skeleton/CreateProfile2Skeleton';
 import { lightTheme, darkTheme } from '../theme/colors';
-
-const PROFILE_IMAGE_UPLOAD_URL = 'https://jobscheck.com.tr/upload_profile_image.php';
+import { uploadToCloudinary } from '../utils/cloudinary';
 
 const CreatePage2 = ({ route }) => {
   const userId = useSelector(state => state.user.userId);
@@ -48,6 +48,20 @@ const CreatePage2 = ({ route }) => {
   useEffect(() => {
     let isMounted = true;
     const prepareData = async () => {
+      // Son 20 dk içindeki ilerlemeyi geri yükle
+      const saved = await AsyncStorage.getItem('create_page2_draft');
+      if (saved) {
+        const { data, timestamp } = JSON.parse(saved);
+        if (Date.now() - timestamp < 20 * 60 * 1000) {
+          if (isMounted) {
+            if (data.bio) setBio(data.bio);
+            if (data.userLocation) setUserLocation(data.userLocation);
+          }
+        } else {
+          await AsyncStorage.removeItem('create_page2_draft');
+        }
+      }
+
       if (!userId) {
         if (isMounted) setPageLoading(false);
         return;
@@ -71,6 +85,19 @@ const CreatePage2 = ({ route }) => {
     prepareData();
     return () => { isMounted = false; };
   }, [userId]);
+
+  // Bio ve konum değişikliklerini otomatik kaydet
+  useEffect(() => {
+    const saveDraft = async () => {
+      try {
+        await AsyncStorage.setItem('create_page2_draft', JSON.stringify({
+          data: { bio, userLocation },
+          timestamp: Date.now()
+        }));
+      } catch (_) {}
+    };
+    saveDraft();
+  }, [bio, userLocation]);
 
   const handleConnect = (id) => {
     setConnectedIds(prev => {
@@ -103,28 +130,94 @@ const CreatePage2 = ({ route }) => {
     setIsLoading(true);
     try {
       let imageUrlForFirebase = profileImageUri;
-      if (profileImageUri && profileImageUri.startsWith('file://')) {
-        const formData = new FormData();
-        formData.append('profileImage', {
-          uri: profileImageUri,
-          name: `profile_${userId}.jpg`,
-          type: 'image/jpeg',
-        });
-        const uploadResponse = await axios.post(PROFILE_IMAGE_UPLOAD_URL, formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
-        if (uploadResponse.data.success) imageUrlForFirebase = uploadResponse.data.profileImageUrl;
+      let backImageUrlForFirebase = bannerImageUri;
+
+      if (profileImageUri && !profileImageUri.startsWith('http')) {
+        imageUrlForFirebase = await uploadToCloudinary(profileImageUri, 'image');
       }
 
+      if (bannerImageUri && !bannerImageUri.startsWith('http')) {
+        backImageUrlForFirebase = await uploadToCloudinary(bannerImageUri, 'image');
+      }
+
+      // 1. Aşama taslak verilerini AsyncStorage'dan oku
+      let step1Payload = {};
+      const profRaw = await AsyncStorage.getItem('create_profile_draft');
+      const studRaw = await AsyncStorage.getItem('student_page_draft');
+      
+      let profData = null;
+      let studData = null;
+      
+      if (profRaw) {
+        const parsed = JSON.parse(profRaw);
+        if (Date.now() - parsed.timestamp < 20 * 60 * 1000) profData = parsed;
+      }
+      if (studRaw) {
+        const parsed = JSON.parse(studRaw);
+        if (Date.now() - parsed.timestamp < 20 * 60 * 1000) studData = parsed;
+      }
+
+      if (profData && studData) {
+        // En güncel olanı seç
+        if (profData.timestamp > studData.timestamp) {
+          step1Payload = {
+            profession: profData.data.profession || '',
+            employmentType: profData.data.employmentType || '',
+            company: profData.data.company || '',
+            school: profData.data.school || ''
+          };
+        } else {
+          step1Payload = {
+            school: studData.data.schoolName || '',
+            degree: studData.data.degree || '',
+            branch: studData.data.branch || '',
+            startYear: studData.data.startYear || '',
+            endYear: studData.data.endYear || '',
+            isOver16: studData.data.isOver16 ?? true,
+          };
+          if (!studData.data.isOver16 && studData.data.birthDay) {
+            step1Payload.birthDate = `${studData.data.birthDay}-${studData.data.birthMonth}-${studData.data.birthYear}`;
+          }
+        }
+      } else if (profData) {
+        step1Payload = {
+          profession: profData.data.profession || '',
+          employmentType: profData.data.employmentType || '',
+          company: profData.data.company || '',
+          school: profData.data.school || ''
+        };
+      } else if (studData) {
+        step1Payload = {
+          school: studData.data.schoolName || '',
+          degree: studData.data.degree || '',
+          branch: studData.data.branch || '',
+          startYear: studData.data.startYear || '',
+          endYear: studData.data.endYear || '',
+          isOver16: studData.data.isOver16 ?? true,
+        };
+        if (!studData.data.isOver16 && studData.data.birthDay) {
+          step1Payload.birthDate = `${studData.data.birthDay}-${studData.data.birthMonth}-${studData.data.birthYear}`;
+        }
+      }
+
+      // Tüm verileri bir kerede Firestore'a kaydet
       await updateDoc(doc(db, 'Users', userId), {
-        bio, userLocation, profileImageUrl: imageUrlForFirebase,
-        isProfileComplete: true, lastActiveAt: new Date().toISOString()
+        ...step1Payload,
+        bio,
+        userLocation,
+        profileImageUrl: imageUrlForFirebase,
+        backProfileImageUrl: backImageUrlForFirebase || null,
+        profileCompleted: true,
+        isProfileComplete: true,
+        lastActiveAt: new Date().toISOString()
       });
 
-      
+      // Başarılı kayıt — tüm taslakları temizle
+      await AsyncStorage.multiRemove(['create_profile_draft', 'student_page_draft', 'create_page2_draft', 'step1_completed']);
+      dispatch(setProfileStep(null));
       dispatch(setAuth(true));
     } catch (e) {
-      console.error(e);
+      console.error("Profile save error:", e);
     } finally {
       setIsLoading(false);
     }
@@ -176,10 +269,13 @@ const CreatePage2 = ({ route }) => {
             {}
             <View style={styles.profileImageWrapper}>
               <Pressable onPress={() => pickImage('profile')} style={styles.imagePressable}>
-                <Image
-                  source={profileImageUri ? { uri: profileImageUri } : require('../../assets/images/ProfilCirclePlus.png')}
-                  style={styles.profileImage}
-                />
+                {profileImageUri ? (
+                  <Image source={{ uri: profileImageUri }} style={styles.profileImage} />
+                ) : (
+                  <View style={[styles.profileImage, { justifyContent: 'center', alignItems: 'center', backgroundColor: colors.border }]}>
+                    <MaterialCommunityIcons name="account-circle" size={92} color={colors.textSub} />
+                  </View>
+                )}
                 <View style={styles.cameraIconBadge}>
                   <Ionicons name="camera" size={16} color="white" />
                 </View>
@@ -223,10 +319,13 @@ const CreatePage2 = ({ route }) => {
                         style={styles.coverImage}
                       />
                     </View>
-                    <Image
-                      source={item.profileImageUrl ? { uri: item.profileImageUrl } : require('../../assets/images/ProfilCirclePlus.png')}
-                      style={styles.suggestedUserImage}
-                    />
+                    {item.profileImageUrl ? (
+                      <Image source={{ uri: item.profileImageUrl }} style={styles.suggestedUserImage} />
+                    ) : (
+                      <View style={[styles.suggestedUserImage, { justifyContent: 'center', alignItems: 'center', backgroundColor: colors.border }]}>
+                        <MaterialCommunityIcons name="account-circle" size={56} color={colors.textSub} />
+                      </View>
+                    )}
                     <View style={styles.userCardInfo}>
                       <Text style={styles.userName} numberOfLines={1}>{item.fullName || 'İsim Soyisim'}</Text>
                       <Text style={styles.userTitle} numberOfLines={1}>{item.jobTitle || 'Üye'}</Text>

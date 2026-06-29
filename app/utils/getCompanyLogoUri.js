@@ -175,16 +175,52 @@ async function fetchRemoteCompanyMap() {
 export async function getCompanyLogoUri(companyName) {
   const name = companyName?.trim();
   if (!name) return null;
-  if (name === 'JobsCheck') {
+  if (name.toLowerCase() === 'jobscheck') {
     return 'https://jobscheck.com.tr/JobsCheckLogo.png';
   }
 
-  
-  const localDomain = companyDomainMap[name];
-  if (localDomain) return `https://logo.clearbit.com/${localDomain}`;
+  const lowerName = name.toLowerCase();
 
-  
+  // 1. Case-insensitive exact lookup in local map
+  const exactKey = Object.keys(companyDomainMap).find(
+    k => k.toLowerCase() === lowerName
+  );
+  if (exactKey) {
+    return `https://logos.hunter.io/${companyDomainMap[exactKey]}`;
+  }
+
+  // 2. Fuzzy/Substring matching in local map (e.g. "Meta" matches "Meta_Facebook_Instagram")
+  const fuzzyKey = Object.keys(companyDomainMap).find(
+    k => k.toLowerCase().includes(lowerName) || lowerName.includes(k.toLowerCase())
+  );
+  if (fuzzyKey) {
+    return `https://logos.hunter.io/${companyDomainMap[fuzzyKey]}`;
+  }
+
+  // 3. Remote map lookups
   const remoteMap = await fetchRemoteCompanyMap();
-  const domain = remoteMap ? remoteMap[name] : null;
-  return domain ? `https://logo.clearbit.com/${domain}` : null;
+  if (remoteMap) {
+    // Exact remote key
+    const remoteExactKey = Object.keys(remoteMap).find(
+      k => k.toLowerCase() === lowerName
+    );
+    if (remoteExactKey) {
+      return `https://logos.hunter.io/${remoteMap[remoteExactKey]}`;
+    }
+    // Fuzzy remote key
+    const remoteFuzzyKey = Object.keys(remoteMap).find(
+      k => k.toLowerCase().includes(lowerName) || lowerName.includes(k.toLowerCase())
+    );
+    if (remoteFuzzyKey) {
+      return `https://logos.hunter.io/${remoteMap[remoteFuzzyKey]}`;
+    }
+  }
+
+  // 4. Default fallback: strip non-alphanumeric and append '.com'
+  const cleanDomain = lowerName.replace(/[^a-z0-9]/g, '');
+  if (cleanDomain.length > 1) {
+    return `https://logos.hunter.io/${cleanDomain}.com`;
+  }
+
+  return null;
 }

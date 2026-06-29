@@ -7,7 +7,8 @@ const initialState = {
   isAuth: false,
   userId: null,
   userInfo: {},
-  publicVisibility: false, 
+  publicVisibility: false,
+  profileStep: null, // null | 'CreateProfile' | 'StudentPage' | 'CreatePage2'
 };
 
 export const userSlice = createSlice({
@@ -25,6 +26,7 @@ export const userSlice = createSlice({
     setUserId: (state, action) => { state.userId = action.payload; },
     setUserInfo: (state, action) => { state.userInfo = action.payload; },
     setPublicVisibility: (state, action) => { state.publicVisibility = action.payload; },
+    setProfileStep: (state, action) => { state.profileStep = action.payload; },
     resetUser: (state) => {
       state.email = '';
       state.password = '';
@@ -32,7 +34,8 @@ export const userSlice = createSlice({
       state.isAuth = false;
       state.userId = null;
       state.userInfo = {};
-      state.publicVisibility = false; 
+      state.publicVisibility = false;
+      state.profileStep = null;
     },
     logoutUser: () => initialState,
   },
@@ -47,6 +50,7 @@ export const {
   setUserId,
   setUserInfo,
   setPublicVisibility,
+  setProfileStep,
   resetUser,
   logoutUser,
 } = userSlice.actions;

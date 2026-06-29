@@ -1,10 +1,12 @@
 import { useFocusEffect, useNavigation, useRoute } from '@react-navigation/native';
 import { BlurView } from 'expo-blur';
-import { useCallback, useState } from 'react';
-import { Dimensions, Image, Platform, Pressable, StyleSheet, View } from 'react-native';
-import SelectionModal from './SelectionModal';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Dimensions, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSelector } from 'react-redux';
-import { lightTheme, darkTheme } from '../theme/colors';
+import { db } from '../../firebaseConfig';
+import { darkTheme, lightTheme } from '../theme/colors';
+import SelectionModal from './SelectionModal';
 
 const { width } = Dimensions.get('window');
 
@@ -20,11 +22,18 @@ const BottomNavBar = ({ userId }) => {
   const navigation = useNavigation();
   const route = useRoute();
   const themeMode = useSelector(state => state.theme?.mode || 'dark');
+  const reduxUserId = useSelector(state => state.user?.userId);
   const colors = themeMode === 'light' ? lightTheme : darkTheme;
   const styles = getStyles(colors);
 
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isModalVisible, setModalVisible] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const unsubRef = useRef(null);
+  const unsubMsgRef = useRef(null);
+
+  const activeUserId = userId || reduxUserId;
 
   const routeNameToIndex = {
     'HomePage': 0,
@@ -43,6 +52,40 @@ const BottomNavBar = ({ userId }) => {
       }
     }, [route.name])
   );
+
+  // Real-time unread notification listener
+  useEffect(() => {
+    if (!activeUserId) return;
+    if (unsubRef.current) unsubRef.current();
+
+    unsubRef.current = onSnapshot(
+      collection(db, 'Users', activeUserId, 'notifications'),
+      (snap) => {
+        const count = snap.docs.filter(d => d.data().isRead === false).length;
+        setUnreadCount(count);
+      },
+      () => setUnreadCount(0)
+    );
+
+    return () => unsubRef.current?.();
+  }, [activeUserId]);
+
+  // Real-time unread messages listener
+  useEffect(() => {
+    if (!activeUserId) return;
+    if (unsubMsgRef.current) unsubMsgRef.current();
+
+    unsubMsgRef.current = onSnapshot(
+      collection(db, 'Users', activeUserId, 'chats'),
+      (snap) => {
+        const count = snap.docs.filter(d => d.data().unread === true).length;
+        setUnreadMessages(count);
+      },
+      () => setUnreadMessages(0)
+    );
+
+    return () => unsubMsgRef.current?.();
+  }, [activeUserId]);
 
   const handleNavigation = (index) => {
     if (index === 2) {
@@ -73,14 +116,36 @@ const BottomNavBar = ({ userId }) => {
               onPress={() => handleNavigation(index)}
               style={styles.navButton}
             >
-              <Image
-                source={selectedIndex === index ? item.active : item.normal}
-                style={[
-                  styles.navIcon,
-                  selectedIndex === index && styles.activeIconStyle,
-                  { tintColor: selectedIndex === index ? colors.primary : colors.textSub }
-                ]}
-              />
+              <View style={styles.iconWrapper}>
+                <Image
+                  source={selectedIndex === index ? item.active : item.normal}
+                  style={[
+                    styles.navIcon,
+                    selectedIndex === index && styles.activeIconStyle,
+                    { tintColor: selectedIndex === index ? colors.primary : colors.textSub }
+                  ]}
+                />
+                {/* Red badge on notifications icon */}
+                {index === 4 && unreadCount > 0 && (
+                  <View style={styles.badge}>
+                    {unreadCount < 100 && (
+                      <Text style={styles.badgeText}>
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </Text>
+                    )}
+                  </View>
+                )}
+                {/* Red badge on messages icon */}
+                {index === 1 && unreadMessages > 0 && (
+                  <View style={styles.badge}>
+                    {unreadMessages < 100 && (
+                      <Text style={styles.badgeText}>
+                        {unreadMessages > 9 ? '9+' : unreadMessages}
+                      </Text>
+                    )}
+                  </View>
+                )}
+              </View>
             </Pressable>
           ))}
         </BlurView>
@@ -141,6 +206,11 @@ const getStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  iconWrapper: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   navIcon: {
     width: 24,
     height: 24,
@@ -150,7 +220,27 @@ const getStyles = (colors) => StyleSheet.create({
   activeIconStyle: {
     opacity: 1,
     transform: [{ scale: 1.15 }],
-  }
+  },
+  badge: {
+    position: 'absolute',
+    top: -5,
+    right: -7,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#FF3B30',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+    borderWidth: 1.5,
+    borderColor: colors.background,
+  },
+  badgeText: {
+    color: 'white',
+    fontSize: 9,
+    fontWeight: '700',
+    lineHeight: 11,
+  },
 });
 
 export default BottomNavBar;

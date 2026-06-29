@@ -37,17 +37,19 @@ const JobsPost2 = () => {
   } = route.params || {};
 
   const [jobDescription, setJobDescription] = useState(initialJobDescription);
+  const [jobSummary, setJobSummary] = useState('');
   const [isItalic, setIsItalic] = useState(false);
   const [isLargeText, setIsLargeText] = useState(false);
 
   const handleNext = () => {
-    if (!jobDescription.trim() || !company.trim() || !location.trim()) {
+    if (!jobSummary.trim() || !jobDescription.trim() || !company.trim() || !location.trim()) {
       alert('Lütfen gerekli alanları doldurunuz!');
       return;
     }
     Keyboard.dismiss();
     navigation.navigate('JobsPost3', {
       ...route.params,
+      jobSummary,
       jobDescription,
     });
   };
@@ -76,7 +78,20 @@ const JobsPost2 = () => {
                 <Text style={styles.cardSubText}>Maaş: {wage || 'Belirtilmemiş'}</Text>
               </View>
 
-              <Text style={styles.label}>Açıklama</Text>
+              <Text style={styles.label}>Kısa Özet *</Text>
+              <TextInput
+                placeholder="İlanı kısaca özetle..."
+                placeholderTextColor={colors.textSub}
+                value={jobSummary}
+                onChangeText={setJobSummary}
+                style={styles.singleLineInput}
+                maxLength={50}
+              />
+              <View style={{ alignItems: 'flex-end', marginTop: -10, marginBottom: 12 }}>
+                <Text style={styles.charCount}>{jobSummary.length} / 50</Text>
+              </View>
+
+              <Text style={styles.sectionTitle}>İlan Açıklaması</Text>
               <TextInput
                 placeholder="İş tanımı ve sorumlulukları buraya yazın..."
                 placeholderTextColor={colors.textSub}
@@ -126,6 +141,7 @@ const getStyles = (colors) => StyleSheet.create({
   card: { backgroundColor: colors.cardBackground, borderRadius: 20, padding: 15, marginBottom: 20, borderWidth: 1, borderColor: colors.border },
   cardTitle: { color: colors.textMain, fontSize: 17, marginBottom: 8, fontWeight: '600' },
   cardSubText: { color: colors.textSub, fontSize: 14, marginBottom: 4 },
+  sectionTitle: { color: colors.textMain, fontSize: 16, fontWeight: 'bold', marginBottom: 8 },
   label: { color: colors.textSub, fontSize: 14, marginBottom: 8 },
   input: {
     color: colors.textMain,
@@ -136,6 +152,17 @@ const getStyles = (colors) => StyleSheet.create({
     textAlignVertical: 'top',
     borderWidth: 1,
     borderColor: colors.border,
+  },
+  singleLineInput: {
+    color: colors.textMain,
+    backgroundColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 15,
+    height: 50,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 16,
+    fontSize: 15,
   },
   toolbar: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10, alignItems: 'center' },
   formatActions: { flexDirection: 'row' },

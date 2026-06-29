@@ -73,6 +73,8 @@ export function JobsPost3() {
         jobLocation: params.location || '',
         jobType: params.jobType || '',
         wage: params.wage || '',
+        jobSummary: params.jobSummary || '',
+        jobDescription: params.jobDescription || '',
         userId: userId,
         advertiser: advertiser,
         applicationMethod: seletion,

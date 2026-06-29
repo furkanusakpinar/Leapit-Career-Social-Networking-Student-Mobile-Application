@@ -53,10 +53,19 @@ const responsiveFontSize = (size) => {
 
 const ConnectionItem = React.memo(({ name, job, profileImageUrl, onConnectPress, isDisabled, isSending, hasSentRequest, colors }) => (
   <View style={[styles(colors).userCard]}>
-    <Image
-      source={profileImageUrl ? { uri: profileImageUrl } : require('../../assets/images/ProfileSquare.png')}
-      style={styles(colors).userProfileImage}
-    />
+    {profileImageUrl ? (
+      <Image
+        source={{ uri: profileImageUrl }}
+        style={styles(colors).userProfileImage}
+      />
+    ) : (
+      <MaterialCommunityIcons
+        name="account-circle"
+        size={SCREEN_WIDTH * 0.18}
+        color={colors.textSub}
+        style={{ marginBottom: 10 }}
+      />
+    )}
     <Text style={styles(colors).userCardName} numberOfLines={1}>{name}</Text>
     <Text style={styles(colors).userCardJob} numberOfLines={1}>{job}</Text>
     <Pressable
@@ -419,7 +428,7 @@ export default function Social() {
         const chatDocRef = doc(db, 'Users', userId, 'chats', chatData.id);
         await updateDoc(chatDocRef, { unread: false });
       }
-      navigation.navigate('sendMessage', {
+      navigation.navigate('SendMessage', {
         recipientId: chatData.recipientId,
         recipientName: chatData.name,
         recipientJob: chatData.job,

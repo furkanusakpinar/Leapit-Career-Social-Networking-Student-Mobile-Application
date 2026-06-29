@@ -3,12 +3,15 @@ import {
   arrayRemove,
   arrayUnion,
   collection,
+  deleteDoc,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
   updateDoc,
+  where,
 } from 'firebase/firestore';
 import moment from 'moment';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -27,12 +30,16 @@ import {
   View,
 } from 'react-native';
 import { useSelector } from 'react-redux';
+import { Alert } from 'react-native';
 import { db } from '../../firebaseConfig';
 import HomePageSkeleton from '../skeleton/HomePageSkeleton';
+import { deleteUserData } from '../utils/deleteUser';
+import { deleteFromCloudinary } from '../utils/cloudinary';
 
 import AppHeader from '../components/AppHeader';
 import BottomNavBar from '../components/BottomNavBar';
 import CommentModal from '../components/CommentModal';
+import PostOptionsMenu from '../components/PostOptionsMenu';
 import VideoPlayer from '../components/VideoPlayer';
 import { lightTheme, darkTheme } from '../theme/colors';
 
@@ -165,12 +172,45 @@ const HomePage = () => {
   const themeMode = useSelector(state => state.theme?.mode || 'dark');
   const colors = themeMode === 'light' ? lightTheme : darkTheme;
   const styles = getStyles(colors);
-  
+
   const [userData, setUserData] = useState(null);
   const [pageLoading, setPageLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [commentModalVisible, setCommentModalVisible] = useState(false);
   const [activePostId, setActivePostId] = useState(null);
+  const [optionsPost, setOptionsPost] = useState(null);
+  const [menuAnchorY, setMenuAnchorY] = useState(0);
+
+  const handleDeleteAllTestUsers = () => {
+    Alert.alert(
+      '⚠️ Dikkat!',
+      'leapitapp@gmail.com dışındaki TÜM kullanıcılar ve onlara ait veriler silinecek. Bu işlem geri alınamaz!',
+      [
+        { text: 'İptal', style: 'cancel' },
+        {
+          text: 'Evet, Sil',
+          style: 'destructive',
+          onPress: async () => {
+            setIsDeleting(true);
+            try {
+              const usersRef = collection(db, 'Users');
+              const q = query(usersRef, where('email', '!=', 'leapitapp@gmail.com'));
+              const snapshot = await getDocs(q);
+              const deletePromises = snapshot.docs.map(d => deleteUserData(d.id));
+              await Promise.all(deletePromises);
+              Alert.alert('✅ Tamamlandı', `${snapshot.docs.length} kullanıcı ve tüm verileri silindi.`);
+            } catch (e) {
+              console.error('Silme hatası:', e);
+              Alert.alert('Hata', 'Kullanıcılar silinirken bir sorun oluştu.');
+            } finally {
+              setIsDeleting(false);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   const handleAction = async (postId, field, isActive) => {
     if (!userId) return;
@@ -182,6 +222,32 @@ const HomePage = () => {
     } catch (error) {
       console.error(`${field} hatası:`, error);
     }
+  };
+
+  const onOptionsPress = (post, pageY) => {
+    setMenuAnchorY(pageY || 0);
+    setOptionsPost(post);
+  };
+
+  const handleDeletePost = async () => {
+    const post = optionsPost;
+    setOptionsPost(null);
+    if (!post) return;
+    try {
+      if (post.mediaUri) {
+        await deleteFromCloudinary(post.mediaUri, post.mediaType || 'image');
+      }
+      await deleteDoc(doc(db, 'Posts', post.id));
+      Alert.alert('Başarılı', 'Gönderi silindi.');
+    } catch (e) {
+      console.error('Silme hatası:', e);
+      Alert.alert('Hata', 'Gönderi silinirken bir hata oluştu.');
+    }
+  };
+
+  const handleReportPost = () => {
+    setOptionsPost(null);
+    Alert.alert('Bildirildi', 'Gönderi başarıyla bildirildi.');
   };
 
   const toggleExpand = (postId) => {
@@ -217,7 +283,7 @@ const HomePage = () => {
             const uData = userSnap.data();
             profileImageUrl = uData.profileImageUrl || null;
             userName = uData.fullName || 'Bilinmeyen Kullanıcı';
-            detailsArr = [uData.latestCompany, uData.job].filter(Boolean);
+            detailsArr = [uData.company, uData.job].filter(Boolean);
           }
         } catch (e) { console.error("Profil yükleme hatası:", e); }
 
@@ -259,6 +325,7 @@ const HomePage = () => {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
         showsVerticalScrollIndicator={false}
       >
+
         {posts.map(post => {
           const isExpanded = expandedPosts[post.id];
           const hasMedia = !!(post.mediaUri && post.mediaUri.length > 5);
@@ -282,7 +349,7 @@ const HomePage = () => {
                   {post.details?.length > 0 && <Text style={styles.followerCountText}>{truncateString(post.details, 50)}</Text>}
                   <Text style={styles.cardTime}>{moment(post.createdAt?.seconds * 1000).fromNow()} • 🌎</Text>
                 </View>
-                <Pressable style={styles.optionsContainer}>
+                 <Pressable style={styles.optionsContainer} onPress={(event) => onOptionsPress(post, event.nativeEvent.pageY)}>
                   <Text style={styles.optionsText}>···</Text>
                 </Pressable>
               </View>
@@ -329,6 +396,14 @@ const HomePage = () => {
         postId={activePostId}
         currentUserId={userId}
       />
+      <PostOptionsMenu
+        visible={!!optionsPost}
+        isOwnPost={optionsPost?.userId === userId}
+        onDelete={handleDeletePost}
+        onReport={handleReportPost}
+        onClose={() => setOptionsPost(null)}
+        anchorY={menuAnchorY}
+      />
     </View>
   );
 };
@@ -336,11 +411,11 @@ const HomePage = () => {
 const getStyles = (colors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background, 
+    backgroundColor: colors.background,
   },
   scrollContent: { paddingBottom: 110, paddingTop: 20 },
   card: {
-    backgroundColor: colors.cardBackground, 
+    backgroundColor: colors.cardBackground,
     marginHorizontal: 10,
     marginBottom: 12,
     borderRadius: 20,
@@ -363,7 +438,7 @@ const getStyles = (colors) => StyleSheet.create({
   optionsContainer: { padding: 5, paddingRight: 0 },
   optionsText: { color: colors.textSub, fontSize: 20, fontWeight: 'bold', marginTop: -15 },
   contentSection: { paddingHorizontal: 15, paddingBottom: 12 },
-  cardDescInline: { color: colors.textMain, fontSize: 14, lineHeight: 21 }, 
+  cardDescInline: { color: colors.textMain, fontSize: 14, lineHeight: 21 },
   moreText: { color: colors.textSub, fontSize: 14, fontWeight: '600' },
   mediaWrapper: { width: '100%', aspectRatio: 1.2, backgroundColor: colors.background },
   mediaContent: { width: '100%', height: '100%' },
@@ -400,6 +475,20 @@ const getStyles = (colors) => StyleSheet.create({
   },
   actionIcon: { width: 20, height: 20, resizeMode: 'contain' },
   actionLabel: { color: colors.textSub, fontSize: 13, marginLeft: 6, fontWeight: '600' },
+  deleteAllButton: {
+    backgroundColor: '#FF3B30',
+    marginHorizontal: 10,
+    marginBottom: 12,
+    paddingVertical: 12,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteAllButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
+  },
 });
 
 export default HomePage;

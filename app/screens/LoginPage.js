@@ -1,31 +1,87 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator, Animated,
   Dimensions,
   Easing,
   Image,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Modal, Platform,
   Pressable,
   StyleSheet,
   Text, TextInput,
   View
 } from 'react-native';
+
+const { width: WIN_W, height: WIN_H } = Dimensions.get('window');
+
+const PARTICLE_COUNT = 15;
+const PARTICLE_SPEED = 30000; // ms — very slow and elegant drift
+
+const randomBetween = (min, max) => Math.random() * (max - min) + min;
+
+const ParticleBackground = ({ color = 'rgba(255,255,255,0.8)' }) => {
+  const particles = useMemo(() =>
+    Array.from({ length: PARTICLE_COUNT }, (_, i) => ({
+      id: i,
+      x: new Animated.Value(randomBetween(0, WIN_W)),
+      y: new Animated.Value(randomBetween(0, WIN_H)),
+      size: randomBetween(6, 18),
+      opacity: new Animated.Value(randomBetween(0.25, 0.65)),
+      duration: randomBetween(PARTICLE_SPEED * 0.8, PARTICLE_SPEED * 1.4),
+    })),
+  []);
+
+  useEffect(() => {
+    const animateParticle = (p) => {
+      const nextX = randomBetween(0, WIN_W);
+      const nextY = randomBetween(0, WIN_H);
+      const nextOpacity = randomBetween(0.2, 0.6);
+      Animated.parallel([
+        Animated.timing(p.x, { toValue: nextX, duration: p.duration, useNativeDriver: true, easing: Easing.linear }),
+        Animated.timing(p.y, { toValue: nextY, duration: p.duration, useNativeDriver: true, easing: Easing.linear }),
+        Animated.timing(p.opacity, { toValue: nextOpacity, duration: p.duration / 2, useNativeDriver: true }),
+      ]).start(() => animateParticle(p));
+    };
+    particles.forEach(p => animateParticle(p));
+  }, []);
+
+  return (
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 0 }} pointerEvents="none">
+      {particles.map(p => (
+        <Animated.View
+          key={p.id}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: p.size,
+            height: p.size,
+            borderRadius: p.size / 2,
+            backgroundColor: color,
+            opacity: p.opacity,
+            transform: [{ translateX: p.x }, { translateY: p.y }],
+          }}
+        />
+      ))}
+    </View>
+  );
+};
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { useDispatch, useSelector } from 'react-redux';
 import LoginSkeleton from '../skeleton/LoginSkeleton';
 
 
-import { setAuth, setUserId } from '../redux/userSlice';
+import { setAuth, setUserId, setProfileStep } from '../redux/userSlice';
 
 
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, updateDoc, deleteDoc, addDoc } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import { lightTheme, darkTheme } from '../theme/colors';
+import { hashPassword } from '../utils/hash';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const SCREEN_WIDTH = WIN_W;
 
 
 const image1 = require('../../assets/images/AIPhoto1.png');
@@ -33,7 +89,7 @@ const image2 = require('../../assets/images/AIPhoto4.png');
 const image3 = require('../../assets/images/AIPhoto3.png');
 const image4 = require('../../assets/images/AIPhoto2.png');
 const checkIcon = require('../../assets/images/Check.png');
-const warningIcon = require('../../assets/images/warningIcon.png');
+
 const emailIcon = require('../../assets/images/emailIcon.png');
 const passwordIcon = require('../../assets/images/PasswordIcon.png');
 const eyeIcon = require('../../assets/images/eye.png');
@@ -55,6 +111,104 @@ const LoginPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [isPageLoading, setIsPageLoading] = useState(true);
+
+  const profileStep = useSelector(state => state.user.profileStep);
+  const reduxUserId = useSelector(state => state.user.userId);
+  const userInfo = useSelector(state => state.user.userInfo);
+
+  // BottomSheet state
+  const [sheetVisible, setSheetVisible] = useState(false);
+  const [pendingResume, setPendingResume] = useState(null); // { docId, step, fullName }
+  const sheetAnim = useRef(new Animated.Value(300)).current;
+  const backdropAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (profileStep && reduxUserId) {
+      openSheet({ docId: reduxUserId, step: profileStep, fullName: userInfo?.fullName || '' });
+    }
+  }, [profileStep, reduxUserId]);
+
+  const openSheet = (data) => {
+    setPendingResume(data);
+    setSheetVisible(true);
+    Animated.parallel([
+      Animated.spring(sheetAnim, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }),
+      Animated.timing(backdropAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
+    ]).start();
+  };
+
+  const closeSheet = () => {
+    Animated.parallel([
+      Animated.timing(sheetAnim, { toValue: 300, duration: 220, useNativeDriver: true }),
+      Animated.timing(backdropAnim, { toValue: 0, duration: 220, useNativeDriver: true }),
+    ]).start(() => { setSheetVisible(false); setPendingResume(null); });
+  };
+
+  const handleResumeYes = async () => {
+    if (!pendingResume) return;
+    closeSheet();
+    dispatch(setUserId(pendingResume.docId));
+    dispatch(setProfileStep(pendingResume.step));
+    
+    let currentEmail = email;
+    let currentPassword = password;
+    if (!currentPassword) {
+      const saved = await AsyncStorage.getItem('userCredentials');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        currentEmail = parsed.email;
+        currentPassword = parsed.password;
+      }
+    }
+
+    if (rememberMe || (!email && currentEmail)) {
+      await AsyncStorage.setItem('userCredentials', JSON.stringify({ email: currentEmail.trim().toLowerCase(), password: currentPassword }));
+      await AsyncStorage.setItem('userId', pendingResume.docId);
+    }
+    navigation.replace(pendingResume.step);
+  };
+
+  const handleResumeNo = async () => {
+    if (!pendingResume) return;
+    closeSheet();
+    setIsLoading(true);
+    try {
+      await deleteDoc(doc(db, 'Users', pendingResume.docId));
+      await AsyncStorage.multiRemove(['create_profile_draft', 'create_page2_draft', 'student_page_draft', 'step1_completed']);
+      
+      let currentEmail = email;
+      let currentPassword = password;
+      if (!currentPassword) {
+        const saved = await AsyncStorage.getItem('userCredentials');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          currentEmail = parsed.email;
+          currentPassword = parsed.password;
+        }
+      }
+
+      const usersRef = collection(db, 'Users');
+      const hashedPassword = hashPassword(currentPassword);
+      const docRef = await addDoc(usersRef, {
+        fullName: pendingResume.fullName || '',
+        email: currentEmail.trim().toLowerCase(),
+        password: hashedPassword,
+        createdAt: new Date().toISOString()
+      });
+      dispatch(setUserId(docRef.id));
+      dispatch(setProfileStep('CreateProfile'));
+      if (rememberMe || (!email && currentEmail)) {
+        await AsyncStorage.setItem('userCredentials', JSON.stringify({ email: currentEmail.trim().toLowerCase(), password: currentPassword }));
+        await AsyncStorage.setItem('userId', docRef.id);
+      }
+      navigation.replace('CreateProfile');
+    } catch (e) {
+      console.error(e);
+      Toast.show({ type: 'custom_error', text1: 'Hata', text2: 'İşlem tamamlanamadı.' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   
   const animValue1 = useRef(new Animated.Value(0)).current;
@@ -122,12 +276,64 @@ const LoginPage = () => {
       }
       const userDoc = querySnapshot.docs[0];
       const userData = userDoc.data();
-      if (userData.password !== password) {
+      const hashedPassword = hashPassword(password);
+      if (userData.password !== hashedPassword && userData.password !== password) {
         Toast.show({ type: 'custom_error', text1: 'Hata', text2: 'Şifre yanlış.' });
         setIsLoading(false);
         return;
       }
+      if (userData.password === password) {
+        try {
+          await updateDoc(doc(db, 'Users', userDoc.id), { password: hashedPassword });
+          console.log(`Successfully migrated user ${userDoc.id} password to SHA-256 hash.`);
+        } catch (e) {
+          console.error("Failed to migrate password to hash:", e);
+        }
+      }
       const userId = userDoc.id;
+
+      // Profil tamamlandı mı kontrol et
+      if (!userData.profileCompleted) {
+        const createdAt = userData.createdAt ? new Date(userData.createdAt).getTime() : 0;
+        const elapsedMs = Date.now() - createdAt;
+        const TWENTY_MINUTES = 20 * 60 * 1000;
+
+        if (elapsedMs <= TWENTY_MINUTES) {
+          // 20 dk içinde — BottomSheet sor
+          let step = 'CreateProfile';
+          try {
+            const step1Raw = await AsyncStorage.getItem('step1_completed');
+            if (step1Raw) {
+              const parsed = JSON.parse(step1Raw);
+              if (Date.now() - parsed.timestamp < TWENTY_MINUTES) {
+                step = 'CreatePage2';
+              }
+            }
+          } catch (_) {}
+          setIsLoading(false);
+          openSheet({ docId: userId, step, fullName: userData.fullName });
+          return;
+        } else {
+          // 20 dk geçmiş — sil ve tekrar kaydolmasını söyle
+          await deleteDoc(doc(db, 'Users', userId));
+          await AsyncStorage.multiRemove([
+            'create_profile_draft',
+            'create_page2_draft',
+            'student_page_draft',
+            'step1_completed',
+            'userId',
+            'userCredentials'
+          ]);
+          Toast.show({
+            type: 'custom_error',
+            text1: 'Hesap Silindi',
+            text2: 'Kayıt süreniz (20 dk) dolduğu için hesabınız silinmiştir. Lütfen yeniden kaydolun.'
+          });
+          setIsLoading(false);
+          return;
+        }
+      }
+
       if (rememberMe) {
         await AsyncStorage.setItem('userCredentials', JSON.stringify({ email: email.trim().toLowerCase(), password }));
         await AsyncStorage.setItem('userId', userId);
@@ -162,22 +368,13 @@ const LoginPage = () => {
     };
   };
 
-  const toastConfig = {
-    custom_error: ({ text1, text2 }) => (
-      <View style={toastStyles(colors).container}>
-        <Image source={warningIcon} style={toastStyles(colors).icon} />
-        <View style={toastStyles(colors).textContainer}>
-          <Text style={toastStyles(colors).text1}>{text1}</Text>
-          <Text style={toastStyles(colors).text2}>{text2}</Text>
-        </View>
-      </View>
-    )
-  };
 
   if (isPageLoading) return <LoginSkeleton />;
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <ParticleBackground color={themeMode === 'dark' ? 'rgba(100,149,237,0.45)' : 'rgba(80,80,180,0.35)'} />
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: 'transparent' }]} edges={['top', 'left', 'right']}>
       <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.content}>
           <View style={styles.topSection}>
@@ -245,13 +442,37 @@ const LoginPage = () => {
           </View>
         </View>
       </KeyboardAvoidingView>
-      <Toast config={toastConfig} />
+
+
+      {/* BottomSheet Modal */}
+      <Modal transparent visible={sheetVisible} animationType="none" onRequestClose={closeSheet}>
+        <Animated.View style={[bsStyles.backdrop, { opacity: backdropAnim }]}>
+          <Pressable style={{ flex: 1 }} onPress={closeSheet} />
+        </Animated.View>
+        <Animated.View style={[bsStyles.sheet, { backgroundColor: colors.cardBackground, borderColor: colors.border, transform: [{ translateY: sheetAnim }] }]}>
+          <View style={bsStyles.handle} />
+          <View style={[bsStyles.iconCircle, { backgroundColor: colors.primary + '22' }]}>
+            <Text style={{ fontSize: 32 }}>⏱️</Text>
+          </View>
+          <Text style={[bsStyles.title, { color: colors.textMain }]}>Kaldığın Yerden Devam Et</Text>
+          <Text style={[bsStyles.subtitle, { color: colors.textSub }]}>
+            Profil tamamlama işleminiz yarım kalmış. Devam etmek ister misiniz?
+          </Text>
+          <Pressable style={[bsStyles.btnYes, { backgroundColor: colors.primary }]} onPress={handleResumeYes}>
+            <Text style={bsStyles.btnYesText}>Evet, Devam Et</Text>
+          </Pressable>
+          <Pressable style={[bsStyles.btnNo, { borderColor: colors.border }]} onPress={handleResumeNo}>
+            <Text style={[bsStyles.btnNoText, { color: colors.textSub }]}>Hayır, Baştan Başla</Text>
+          </Pressable>
+        </Animated.View>
+      </Modal>
     </SafeAreaView>
+    </View>
   );
 };
 
 const getStyles = (colors) => StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.background },
+  safeArea: { flex: 1, backgroundColor: 'transparent' },
   container: { flex: 1 },
   content: { flex: 1, justifyContent: 'space-between' },
   topSection: { flex: 1, justifyContent: 'center', alignItems: 'center', zIndex: 1 },
@@ -278,12 +499,81 @@ const getStyles = (colors) => StyleSheet.create({
   rememberText: { color: colors.textSub, fontSize: 14 }
 });
 
-const toastStyles = (colors) => StyleSheet.create({
-  container: { padding: 15, backgroundColor: colors.cardBackground, borderRadius: 10, flexDirection: 'row', alignItems: 'center', width: '90%', elevation: 5, alignSelf: 'center', borderWidth: 1, borderColor: colors.border },
-  icon: { width: 25, height: 25, tintColor: '#FF6347', marginRight: 10 },
-  textContainer: { flex: 1 },
-  text1: { color: colors.textMain, fontSize: 15, fontWeight: 'bold' },
-  text2: { color: colors.textSub, fontSize: 13 },
+
+
+const bsStyles = StyleSheet.create({
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  sheet: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    paddingHorizontal: 24,
+    paddingBottom: 36,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    alignItems: 'center',
+    elevation: 20,
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(150,150,150,0.4)',
+    marginBottom: 20,
+  },
+  iconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 28,
+  },
+  btnYes: {
+    width: '100%',
+    height: 52,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  btnYesText: {
+    color: 'white',
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  btnNo: {
+    width: '100%',
+    height: 52,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+  },
+  btnNoText: {
+    fontWeight: '600',
+    fontSize: 15,
+  },
 });
 
 export default LoginPage;

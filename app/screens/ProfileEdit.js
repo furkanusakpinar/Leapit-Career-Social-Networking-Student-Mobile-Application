@@ -1,3 +1,4 @@
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import axios from 'axios';
 import * as ImagePicker from 'expo-image-picker';
@@ -8,33 +9,21 @@ import {
     Dimensions,
     Image,
     KeyboardAvoidingView,
-    PixelRatio,
     Platform,
     Pressable,
     ScrollView,
     StyleSheet,
-    Text, TextInput,
+    Text,
+    TextInput,
     ToastAndroid,
     View
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import { db } from '../../firebaseConfig';
 import { lightTheme, darkTheme } from '../theme/colors';
+import { uploadToCloudinary } from '../utils/cloudinary';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-
-const responsiveFontSize = (size) => {
-    const standardScreenHeight = 680;
-    const heightPercentage = (size / standardScreenHeight) * 100;
-    const percentage = (heightPercentage * SCREEN_WIDTH) / 100;
-
-    const scalingFactor = 1.35;
-    return Math.round((percentage / PixelRatio.getFontScale()) * scalingFactor);
-};
-
-
-const BACKEND_URL = 'http://141.11.109.234:3002';
-const PROFILE_IMAGE_UPLOAD_URL = 'https://jobscheck.com.tr/upload_profile_image.php';
 
 export default function ProfileEdit() {
     const userId = useSelector(state => state.user.userId);
@@ -42,21 +31,15 @@ export default function ProfileEdit() {
     const colors = themeMode === 'light' ? lightTheme : darkTheme;
     const styles = getStyles(colors);
 
-    const [currentUserData, setCurrentUserData] = useState(null);
-
     const [bio, setBio] = useState('');
     const [userLocation, setUserLocation] = useState('');
+    const [cvUrl, setCvUrl] = useState('');
     const [profileImageUri, setProfileImageUri] = useState(null);
     const [backProfileImageUri, setBackProfileImageUri] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
-    const [isSendingConnection, setIsSendingConnection] = useState(false);
-    const [connectedUserIds, setConnectedUserIds] = useState(new Set());
-    const [connectionCount, setConnectionCount] = useState(0);
-    const MAX_CONNECTIONS = 10;
 
     const navigation = useNavigation();
 
-    
     const canSaveProfile = bio.trim() !== '' && userLocation.trim() !== '' && !isLoading;
 
     useEffect(() => {
@@ -73,7 +56,6 @@ export default function ProfileEdit() {
                 const userDocSnap = await getDoc(userDocRef);
                 if (userDocSnap.exists()) {
                     const userData = userDocSnap.data();
-                    setCurrentUserData(userData);
                     if (userData.bio) {
                         setBio(userData.bio);
                     }
@@ -83,19 +65,21 @@ export default function ProfileEdit() {
                     if (userData.profileImageUrl) {
                         setProfileImageUri(userData.profileImageUrl);
                     }
-                    
                     if (userData.backProfileImageUrl) {
                         setBackProfileImageUri(userData.backProfileImageUrl);
                     }
+                    if (userData.cvUrl) {
+                        setCvUrl(userData.cvUrl);
+                    }
                 } else {
                     if (Platform.OS === 'android') {
-                        ToastAndroid.show("Profiliniz bulunamadı. Yeni bir profil oluşturun.", ToastAndroid.LONG);
+                        ToastAndroid.show("Profiliniz bulunamadı.", ToastAndroid.LONG);
                     }
                 }
             } catch (error) {
                 console.error("Error fetching current user data:", error);
                 if (Platform.OS === 'android') {
-                    ToastAndroid.show("Profil bilgi çekilirken hata oluştu.", ToastAndroid.LONG);
+                    ToastAndroid.show("Profil bilgileri çekilirken hata oluştu.", ToastAndroid.LONG);
                 }
             } finally {
                 setIsLoading(false);
@@ -137,7 +121,7 @@ export default function ProfileEdit() {
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsEditing: true,
-            aspect: [5, 3], 
+            aspect: [16, 6], 
             quality: 0.7,
         });
 
@@ -149,7 +133,7 @@ export default function ProfileEdit() {
     const uploadImageAndSaveProfile = async () => {
         if (!userId) {
             if (Platform.OS === 'android') {
-                ToastAndroid.show('Hata: Kullanıcı kimliği bulunamadı. Lütfen tekrar giriş yapın.', ToastAndroid.LONG);
+                ToastAndroid.show('Hata: Kullanıcı kimliği bulunamadı.', ToastAndroid.LONG);
             }
             return;
         }
@@ -171,60 +155,37 @@ export default function ProfileEdit() {
         let backImageUrlForFirebase = backProfileImageUri; 
 
         try {
-            const formData = new FormData();
-            let hasNewProfileImage = false;
-            let hasNewBackProfileImage = false;
+            const hasNewProfileImage = profileImageUri && !profileImageUri.startsWith('http');
+            const hasNewBackProfileImage = backProfileImageUri && !backProfileImageUri.startsWith('http');
 
-            
-            if (profileImageUri && profileImageUri.startsWith('file://')) {
-                formData.append('profileImage', {
-                    uri: profileImageUri,
-                    name: `profile_${userId}_${new Date().getTime()}.jpg`,
-                    type: 'image/jpeg',
-                });
-                hasNewProfileImage = true;
-            }
-
-            
-            if (backProfileImageUri && backProfileImageUri.startsWith('file://')) {
-                formData.append('backProfileImage', {
-                    uri: backProfileImageUri,
-                    name: `back_profile_${userId}_${new Date().getTime()}.jpg`,
-                    type: 'image/jpeg',
-                });
-                hasNewBackProfileImage = true;
-            }
-
-            if (hasNewProfileImage || hasNewBackProfileImage) {
-                const uploadResponse = await axios.post(PROFILE_IMAGE_UPLOAD_URL, formData, {
-                    headers: {
-                        'Content-Type': 'multipart/form-data',
-                    },
-                });
-
-                if (uploadResponse.data.success) {
-                    if (uploadResponse.data.profileImageUrl) {
-                        imageUrlForFirebase = uploadResponse.data.profileImageUrl;
-                    }
-                    if (uploadResponse.data.backProfileImageUrl) { 
-                        backImageUrlForFirebase = uploadResponse.data.backProfileImageUrl;
-                    }
+            if (hasNewProfileImage) {
+                try {
+                    imageUrlForFirebase = await uploadToCloudinary(profileImageUri, 'image');
+                } catch (err) {
                     if (Platform.OS === 'android') {
-                        ToastAndroid.show('Resimler başarıyla yüklendi!', ToastAndroid.SHORT);
-                    }
-                } else {
-                    if (Platform.OS === 'android') {
-                        ToastAndroid.show('Resim yüklenirken hata oluştu: ' + uploadResponse.data.message, ToastAndroid.LONG);
+                        ToastAndroid.show('Profil resmi yüklenirken hata oluştu: ' + err.message, ToastAndroid.LONG);
                     }
                     setIsLoading(false);
                     return;
                 }
             }
 
+            if (hasNewBackProfileImage) {
+                try {
+                    backImageUrlForFirebase = await uploadToCloudinary(backProfileImageUri, 'image');
+                } catch (err) {
+                    if (Platform.OS === 'android') {
+                        ToastAndroid.show('Arka plan resmi yüklenirken hata oluştu: ' + err.message, ToastAndroid.LONG);
+                    }
+                    setIsLoading(false);
+                    return;
+                }
+            }
 
             const updateData = {
                 bio: bio.trim(),
                 userLocation: userLocation.trim(),
+                cvUrl: cvUrl.trim(),
                 profileImageUrl: imageUrlForFirebase,
                 backProfileImageUrl: backImageUrlForFirebase, 
             };
@@ -232,7 +193,7 @@ export default function ProfileEdit() {
             if (Platform.OS === 'android') {
                 ToastAndroid.show('Profiliniz başarıyla güncellendi!', ToastAndroid.LONG);
             }
-            navigation.navigate('MainSwipe', { screen: 'HomePage' });
+            navigation.goBack();
 
         } catch (e) {
             console.error('Profil veya resim güncellenemedi:', e);
@@ -245,244 +206,183 @@ export default function ProfileEdit() {
     };
 
     return (
-        <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.container}
-        >
-            <ScrollView
-                style={styles.scrollViewContent}
-                contentContainerStyle={styles.contentContainer}
-                showsVerticalScrollIndicator={false}
+        <View style={styles.container}>
+            {/* Sabit Üst Başlık ve Geri Butonu */}
+            <View style={styles.headerFixed}>
+                <Pressable onPress={() => navigation.goBack()} style={styles.backButtonHeader}>
+                    <Ionicons name="arrow-back" size={24} color={colors.textMain} />
+                </Pressable>
+                <Text style={styles.brandTagline}>Profili Düzenle</Text>
+                <View style={{ width: 24 }} />
+            </View>
+
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={styles.keyboardAvoidingView}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
             >
-                <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit>Profilini Tamamla</Text>
-
-                {}
-                <Pressable onPress={handleChooseBackPhoto} style={styles.backProfileImageContainer}>
-                    {backProfileImageUri ? (
-                        <Image source={{ uri: backProfileImageUri }} style={styles.backProfileImage} />
-                    ) : (
-                        <View style={styles.backProfileImagePlaceholder}>
-                            <Text style={styles.placeholderText}>Arka Plan</Text>
-                            <Text style={styles.placeholderSubText}>Fotoğrafı Seç</Text>
-                        </View>
-                    )}
-                </Pressable>
-
-                <Pressable onPress={handleChoosePhoto} style={styles.profileImageContainer}>
-                    {profileImageUri ? (
-                        <Image source={{ uri: profileImageUri }} style={styles.profileImage} />
-                    ) : (
-                        <View style={styles.profileImagePlaceholder}>
-                            <Text style={styles.placeholderText}>Profil</Text>
-                            <Text style={styles.placeholderSubText}>Seç</Text>
-                        </View>
-                    )}
-                    <Text style={styles.changeBackPhotoText}>Profil Fotoğrafı Seç / Değiştir</Text>
-                </Pressable>
-
-                <Text style={styles.label}>Hakkımda</Text>
-                <TextInput
-                    placeholder="Kendinizden bahsedin..."
-                    placeholderTextColor={colors.textSub}
-                    style={[styles.input, styles.bioInput]}
-                    multiline
-                    value={bio}
-                    onChangeText={setBio}
-                    maxLength={500}
-                />
-                <Text style={styles.charCount}>{bio.length}/500</Text>
-
-                <Text style={styles.label}>Konum *</Text>
-                <TextInput
-                    placeholder="Konumunuzu girin..."
-                    placeholderTextColor={colors.textSub}
-                    style={[styles.input, styles.locationInput]}
-                    multiline
-                    value={userLocation}
-                    onChangeText={setUserLocation}
-                    maxLength={100}
-                />
-                <Text style={styles.charCount}>{userLocation.length}/100</Text>
-
-                <Pressable
-                    style={[styles.button, !canSaveProfile && styles.disabledButton]}
-                    onPress={uploadImageAndSaveProfile}
-                    disabled={!canSaveProfile}
+                <ScrollView
+                    contentContainerStyle={styles.scrollContent}
+                    bounces={false}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
                 >
-                    {isLoading && !isSendingConnection ? (
-                        <ActivityIndicator size="small" color="white" />
-                    ) : (
-                        <Text style={[styles.buttonText, !canSaveProfile && styles.disabledButtonText]}>İleri</Text>
-                    )}
-                </Pressable>
+                    <View style={styles.loginCard}>
+                        {/* Kapak Fotoğrafı */}
+                        <View style={styles.bannerContainer}>
+                            <Pressable onPress={handleChooseBackPhoto} style={styles.bannerPressable}>
+                                {backProfileImageUri ? (
+                                    <Image source={{ uri: backProfileImageUri }} style={styles.bannerImage} />
+                                ) : (
+                                    <View style={styles.bannerPlaceholder}>
+                                        <Ionicons name="image" size={30} color={colors.textSub} />
+                                        <Text style={styles.bannerPlaceholderText}>Kapak Fotoğrafı Ekle</Text>
+                                    </View>
+                                )}
+                                <View style={styles.bannerCameraIcon}>
+                                    <Ionicons name="camera" size={18} color="white" />
+                                </View>
+                            </Pressable>
+                        </View>
 
-            </ScrollView>
-        </KeyboardAvoidingView>
+                        {/* Profil Fotoğrafı */}
+                        <View style={styles.profileImageWrapper}>
+                            <Pressable onPress={handleChoosePhoto} style={styles.imagePressable}>
+                                {profileImageUri ? (
+                                    <Image source={{ uri: profileImageUri }} style={styles.profileImage} />
+                                ) : (
+                                    <View style={[styles.profileImage, { justifyContent: 'center', alignItems: 'center', backgroundColor: colors.border }]}>
+                                        <MaterialCommunityIcons name="account-circle" size={92} color={colors.textSub} />
+                                    </View>
+                                )}
+                                <View style={styles.cameraIconBadge}>
+                                    <Ionicons name="camera" size={16} color="white" />
+                                </View>
+                            </Pressable>
+                        </View>
+
+                        <Text style={styles.titleText}>Hakkımda</Text>
+                        <TextInput
+                            placeholder="Kendinizden bahsedin..."
+                            placeholderTextColor={colors.textSub}
+                            style={[styles.input, styles.bioInput]}
+                            multiline
+                            value={bio}
+                            onChangeText={setBio}
+                            maxLength={500}
+                        />
+                        <Text style={styles.charCount}>{bio.length}/500</Text>
+
+                        <Text style={styles.titleText}>Konum *</Text>
+                        <TextInput
+                            placeholder="Şehir, Ülke"
+                            placeholderTextColor={colors.textSub}
+                            style={[styles.input, styles.locationInput]}
+                            value={userLocation}
+                            onChangeText={setUserLocation}
+                            maxLength={100}
+                        />
+                        <Text style={styles.charCount}>{userLocation.length}/100</Text>
+
+                        <Text style={styles.titleText}>CV Bağlantısı (URL)</Text>
+                        <TextInput
+                            placeholder="CV / Portfolyo linkinizi girin (örn. Drive, PDF, web sitesi)..."
+                            placeholderTextColor={colors.textSub}
+                            style={[styles.input, styles.locationInput]}
+                            value={cvUrl}
+                            onChangeText={setCvUrl}
+                            maxLength={200}
+                        />
+                        <Text style={styles.charCount}>{cvUrl.length}/200</Text>
+
+                        <Pressable
+                            style={[styles.button, !canSaveProfile && styles.disabledButton]}
+                            onPress={uploadImageAndSaveProfile}
+                            disabled={!canSaveProfile}
+                        >
+                            {isLoading ? (
+                                <ActivityIndicator size="small" color="white" />
+                            ) : (
+                                <Text style={styles.buttonText}>Kaydet</Text>
+                            )}
+                        </Pressable>
+                    </View>
+                </ScrollView>
+            </KeyboardAvoidingView>
+        </View>
     );
 }
 
 const getStyles = (colors) => StyleSheet.create({
-    container: {
-        flex: 1,
+    container: { flex: 1, backgroundColor: colors.background },
+    headerFixed: {
+        paddingTop: Platform.OS === 'ios' ? 60 : 40,
+        paddingBottom: 20,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
         backgroundColor: colors.background,
+        paddingHorizontal: 16,
+        zIndex: 100
     },
-    scrollViewContent: {
-        flex: 1,
-    },
-    contentContainer: {
-        flexGrow: 1,
-        justifyContent: 'flex-start',
-        paddingBottom: SCREEN_HEIGHT * 0.02,
-        paddingHorizontal: SCREEN_WIDTH * 0.03,
-        paddingTop: SCREEN_HEIGHT * 0.07,
-    },
-    title: {
-        color: colors.textMain,
-        fontSize: responsiveFontSize(32),
-        marginBottom: SCREEN_HEIGHT * 0.02,
-        textAlign: 'center',
-        fontWeight: 'bold',
-        letterSpacing: 0.5,
-    },
-    label: {
-        color: colors.textSub,
-        fontSize: responsiveFontSize(18),
-        marginTop: SCREEN_HEIGHT * 0.02,
-        fontWeight: '500',
-    },
-    input: {
+    backButtonHeader: { padding: 4 },
+    brandTagline: { color: colors.textMain, fontSize: 22, fontWeight: 'bold' },
+    keyboardAvoidingView: { flex: 1 },
+    scrollContent: { flexGrow: 1, justifyContent: 'flex-end' },
+
+    loginCard: {
         backgroundColor: colors.cardBackground,
-        color: colors.textMain,
-        padding: SCREEN_WIDTH * 0.035,
-        borderRadius: 10,
-        fontSize: responsiveFontSize(17),
-        borderWidth: 1,
+        borderTopLeftRadius: 35,
+        borderTopRightRadius: 35,
+        paddingHorizontal: 25,
+        paddingBottom: Platform.OS === 'ios' ? 40 : 20,
+        width: '100%',
+        zIndex: 2,
+        marginTop: 20,
+        borderTopWidth: 1,
+        borderLeftWidth: 1,
+        borderRightWidth: 1,
         borderColor: colors.border,
     },
-    bioInput: {
-        height: SCREEN_HEIGHT * 0.13,
-        textAlignVertical: 'top',
-        lineHeight: responsiveFontSize(22),
-        marginBottom: SCREEN_HEIGHT * 0.002,
+    bannerContainer: { width: '100%', height: 120, zIndex: 1, marginTop: 20, borderRadius: 20, overflow: 'hidden' },
+    bannerPressable: { width: '100%', height: '100%', backgroundColor: colors.border },
+    bannerImage: { width: '100%', height: '100%' },
+    bannerPlaceholder: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    bannerPlaceholderText: { color: colors.textSub, fontSize: 12, marginTop: 5, fontWeight: '600' },
+    bannerCameraIcon: {
+        position: 'absolute', top: 10, right: 10,
+        backgroundColor: 'rgba(0,0,0,0.4)', padding: 6, borderRadius: 20
     },
-    locationInput: {
-        height: SCREEN_HEIGHT * 0.065,
-        textAlignVertical: 'top',
-        lineHeight: responsiveFontSize(22),
+
+    profileImageWrapper: {
+        alignItems: 'center',
+        marginTop: -50,
+        marginBottom: 15,
+        zIndex: 3
     },
+    imagePressable: { position: 'relative' },
+    profileImage: {
+        width: 100, height: 100, borderRadius: 50,
+        borderWidth: 4, borderColor: colors.cardBackground,
+        backgroundColor: colors.border
+    },
+    cameraIconBadge: {
+        position: 'absolute', bottom: 5, right: 5, backgroundColor: colors.primary,
+        width: 28, height: 28, borderRadius: 14, justifyContent: 'center',
+        alignItems: 'center', borderWidth: 3, borderColor: colors.cardBackground
+    },
+
+    titleText: { color: colors.textSub, marginBottom: 4, fontSize: 12, fontWeight: '600', marginTop: 12 },
+    input: { backgroundColor: colors.border, borderRadius: 10, padding: 10, color: colors.textMain, fontSize: 14, marginBottom: 4 },
+    bioInput: { height: 80, textAlignVertical: 'top' },
+    locationInput: { height: 50 },
     charCount: {
         color: colors.textSub,
-        fontSize: responsiveFontSize(13),
+        fontSize: 11,
         textAlign: 'right',
-        marginTop: SCREEN_HEIGHT * 0.002,
-        marginBottom: SCREEN_HEIGHT * 0.002,
+        marginBottom: 8,
     },
-    
-    backProfileImageContainer: {
-        alignItems: 'center',
-        marginTop: SCREEN_HEIGHT * 0.02,
-        marginBottom: SCREEN_HEIGHT * 0.03,
-        width: '100%',
-        position: 'relative',
-    },
-    backProfileImage: {
-        width: '100%',
-        height: SCREEN_HEIGHT * 0.2, 
-        borderRadius: 10,
-        backgroundColor: colors.border,
-        resizeMode: 'cover',
-    },
-    backProfileImagePlaceholder: {
-        width: '100%',
-        height: SCREEN_HEIGHT * 0.2,
-        borderRadius: 10,
-        backgroundColor: colors.border,
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: colors.border,
-    },
-    changeBackPhotoText: {
-        color: colors.primary,
-        fontSize: responsiveFontSize(16),
-        marginTop: SCREEN_HEIGHT * 0.01,
-        fontWeight: 'bold',
-    },
-    
-    profileImageContainer: {
-        alignItems: 'center',
-        marginTop: -SCREEN_HEIGHT * 0.12, 
-        marginBottom: SCREEN_HEIGHT * 0.03,
-        zIndex: 10,
-    },
-    profileImage: {
-        width: SCREEN_WIDTH * 0.3,
-        height: SCREEN_WIDTH * 0.3,
-        borderRadius: (SCREEN_WIDTH * 0.3) / 2,
-        justifyContent: 'center',
-        alignItems: 'center',
-        resizeMode: 'cover',
-        borderWidth: 3,
-        borderColor: colors.background,
-    },
-    profileImagePlaceholder: {
-        width: SCREEN_WIDTH * 0.3,
-        height: SCREEN_WIDTH * 0.3,
-        borderRadius: (SCREEN_WIDTH * 0.3) / 2,
-        backgroundColor: colors.border,
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: colors.border,
-    },
-    placeholderText: {
-        color: colors.textSub,
-        fontSize: responsiveFontSize(18),
-        fontWeight: 'bold',
-    },
-    placeholderSubText: {
-        color: colors.textSub,
-        fontSize: responsiveFontSize(14),
-    },
-    button: {
-        backgroundColor: colors.primary,
-        padding: SCREEN_HEIGHT * 0.018,
-        borderRadius: 10,
-        alignItems: 'center',
-        marginTop: SCREEN_HEIGHT * 0.025,
-        shadowColor: colors.primary,
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.25,
-        shadowRadius: 4,
-        elevation: 6,
-    },
-    buttonText: {
-        color: 'white',
-        fontWeight: 'bold',
-        fontSize: responsiveFontSize(18),
-        letterSpacing: 0.3,
-    },
-    disabledButton: {
-        backgroundColor: colors.border,
-        borderColor: colors.textSub,
-        elevation: 0,
-    },
-    disabledButtonText: {
-        color: colors.textSub,
-    },
-    skipButton: {
-        backgroundColor: 'transparent',
-        borderWidth: 1,
-        borderColor: colors.primary,
-        padding: SCREEN_HEIGHT * 0.018,
-        borderRadius: 10,
-        alignItems: 'center',
-        marginTop: SCREEN_HEIGHT * 0.015,
-    },
-    skipButtonText: {
-        color: colors.primary,
-        fontSize: responsiveFontSize(18),
-        fontWeight: 'bold',
-        letterSpacing: 0.3,
-    },
+    button: { backgroundColor: colors.primary, padding: 14, borderRadius: 10, alignItems: 'center', marginTop: 15, marginBottom: 20 },
+    buttonText: { color: 'white', fontWeight: 'bold', fontSize: 15 },
+    disabledButton: { opacity: 0.5 },
 });

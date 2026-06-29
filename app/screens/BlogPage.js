@@ -21,6 +21,7 @@ import { useSelector } from 'react-redux';
 import { db } from '../../firebaseConfig';
 import { lightTheme, darkTheme } from '../theme/colors';
 import VideoPlayer from '../components/VideoPlayer';
+import { uploadToCloudinary } from '../utils/cloudinary';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const { width } = Dimensions.get('window');
@@ -186,34 +187,15 @@ export function BlogPage() {
           setPostVisibility(prePostData.visibility || 'global');
         }
       }
-
       let hostedMediaUrl = null;
       if (finalMediaUri) {
-        const formData = new FormData();
-        formData.append('media', {
-          uri: finalMediaUri,
-          name: `post_${userId}_${Date.now()}.${finalMediaType === 'image' ? 'jpg' : 'mp4'}`,
-          type: `${finalMediaType}/${finalMediaType === 'image' ? 'jpeg' : 'mp4'}`,
-        });
-
-        const uploadUrl = 'https://jobscheck.com.tr/upload_media.php'; 
-        const response = await fetch(uploadUrl, {
-          method: 'POST',
-          body: formData,
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        });
-
-        const responseData = await response.json();
-
-        if (responseData.success) {
-          hostedMediaUrl = responseData.url;
-        } else {
+        try {
+          hostedMediaUrl = await uploadToCloudinary(finalMediaUri, finalMediaType);
+        } catch (err) {
           Toast.show({
             type: 'error',
             text1: 'Hata',
-            text2: 'Medya yüklenirken hata oluştu: ' + responseData.message,
+            text2: 'Medya yüklenirken hata oluştu: ' + err.message,
           });
           setUploading(false);
           return;
@@ -360,7 +342,7 @@ export function BlogPage() {
 
         </ScrollView>
       </KeyboardAvoidingView>
-      <Toast config={toastConfig} position='bottom' bottomOffset={50} />
+
     </SafeAreaView>
   );
 }

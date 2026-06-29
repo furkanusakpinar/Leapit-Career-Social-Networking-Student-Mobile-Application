@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, Image, TextInput, Pressable, FlatList, KeyboardAvoidingView, Platform, Dimensions, SafeAreaView, StatusBar, Keyboard, ToastAndroid, Animated, PanResponder, Modal, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Image, TextInput, Pressable, FlatList, KeyboardAvoidingView, Platform, Dimensions, StatusBar, Keyboard, ToastAndroid, Animated, PanResponder, Modal, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import moment from 'moment';
 
 
@@ -30,14 +31,14 @@ export default function SendMessage() {
   const colors = themeMode === 'light' ? lightTheme : darkTheme;
   const styles = getStyles(colors);
 
-  const { recipientId, recipientName, recipientJob, recipientProfileImageUrl, recipientSchool, recipientCompany } = route.params || {
-    recipientId: null,
-    recipientName: 'Bilinmeyen Kullanıcı',
-    recipientJob: 'Bilinmeyen Meslek',
-    recipientCompany: 'Bilinmeyen Şirket',
-    recipientSchool: 'Bilinmeyen Okul',
-    recipientProfileImageUrl: null,
-  };
+  const {
+    recipientId = null,
+    recipientName = 'Bilinmeyen Kullanıcı',
+    recipientJob = 'Bilinmeyen Meslek',
+    recipientProfileImageUrl = null,
+    recipientSchool = 'Bilinmeyen Okul',
+    recipientCompany = 'Bilinmeyen Şirket'
+  } = route.params || {};
 
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState([]);
@@ -92,8 +93,8 @@ export default function SendMessage() {
             const userData = userDoc.data();
             setCurrentUserName(userData.username || userData.fullName || 'Siz');
             setCurrentUserJob(userData.job || 'Meslek Bilgisi Yok');
-            setCurrentUserSchool(userData.schoolName || 'Okul Bilgisi Yok');
-            setCurrentUserCompany(userData.latestCompany || 'Şirket Bilgisi Yok');
+            setCurrentUserSchool(userData.school || 'Okul Bilgisi Yok');
+            setCurrentUserCompany(userData.company || 'Şirket Bilgisi Yok');
             setCurrentUserProfileImageUrl(userData.profileImageUrl || null);
           } else {
             console.warn("Current user profile not found in Users collection.");
@@ -199,10 +200,10 @@ export default function SendMessage() {
           await setDoc(doc(db, 'Users', currentUserId, 'chats', chatId), {
             otherUserId: recipientId,
             otherUserName: recipientName,
-            otherUserJob: recipientJob,
-            otherUserSchool: recipientSchool,
-            otherUserCompany: recipientCompany,
-            otherUserProfileImageUrl: recipientProfileImageUrl || null,
+            otherUserJob: recipientJob ?? null,
+            otherUserSchool: recipientSchool ?? null,
+            otherUserCompany: recipientCompany ?? null,
+            otherUserProfileImageUrl: recipientProfileImageUrl ?? null,
             lastMessageText: currentMessage,
             lastMessageCreatedAt: timestamp,
             unread: false,
@@ -211,10 +212,10 @@ export default function SendMessage() {
           await setDoc(doc(db, 'Users', recipientId, 'chats', chatId), {
             otherUserId: currentUserId,
             otherUserName: currentUserName,
-            otherUserJob: currentUserJob,
-            otherUserSchool: currentUserSchool,
-            otherUserCompany: currentUserCompany,
-            otherUserProfileImageUrl: currentUserProfileImageUrl || null,
+            otherUserJob: currentUserJob ?? null,
+            otherUserSchool: currentUserSchool ?? null,
+            otherUserCompany: currentUserCompany ?? null,
+            otherUserProfileImageUrl: currentUserProfileImageUrl ?? null,
             lastMessageText: currentMessage,
             lastMessageCreatedAt: timestamp,
             unread: true,
@@ -305,56 +306,81 @@ export default function SendMessage() {
     }
   };
 
-  const renderMessageItem = useCallback(({ item }) => {
+  const renderMessageItem = useCallback(({ item, index }) => {
     const isMyMessage = item.senderId === currentUserId;
     const profileImageUrl = isMyMessage ? currentUserProfileImageUrl : recipientProfileImageUrl;
 
     const repliedToMessage = item.replyToMessageId ? messages.find(m => m.id === item.replyToMessageId) : null;
     const repliedToMessageSenderName = item.replyToMessageSenderName || (repliedToMessage?.senderId === currentUserId ? 'Siz' : recipientName);
 
+    // FlatList is inverted, so index 0 is the newest message.
+    // The message chronologically newer (below the current one) is at `index - 1`.
+    const isNextMessageSameSender = index > 0 && messages[index - 1]?.senderId === item.senderId;
+    const showPointer = !isNextMessageSameSender;
+
     return (
       <Pressable onLongPress={() => handleLongPressMessage(item)} style={[styles.messageItemContainer, isMyMessage ? styles.myMessageItemContainer : styles.otherMessageItemContainer]}>
         {!isMyMessage && (
-          <Image
-            source={profileImageUrl ? { uri: profileImageUrl } : require('../../assets/images/ProfileSquare.png')}
-            style={[styles.messageAvatar, { marginRight: '3%' }]}
-          />
+          profileImageUrl ? (
+            <Image
+              source={{ uri: profileImageUrl }}
+              style={[styles.messageAvatar, { marginRight: '3%' }]}
+            />
+          ) : (
+            <MaterialCommunityIcons
+              name="account-circle"
+              size={28}
+              color={colors.textSub}
+              style={{ marginRight: '3%' }}
+            />
+          )
         )}
         <View style={[
           styles.messageBubble,
           isMyMessage ? styles.myMessageBubble : styles.otherMessageBubble
         ]}>
-          {isMyMessage ? (
-            <View style={styles.myMessageBubblePointer} />
-          ) : (
-            <View style={styles.otherMessageBubblePointer} />
+          {showPointer && (
+            isMyMessage ? (
+              <View style={styles.myMessageBubblePointer} />
+            ) : (
+              <View style={styles.otherMessageBubblePointer} />
+            )
           )}
           {item.replyToMessageId && (
-            <View style={styles.repliedMessageContainer}>
-              <Text style={styles.repliedMessageSender}>{repliedToMessageSenderName}</Text>
-              <Text style={styles.repliedMessageText}>{item.replyToMessageText}</Text>
+            <View style={[styles.repliedMessageContainer, !isMyMessage && { borderLeftColor: colors.primary }]}>
+              <Text style={[styles.repliedMessageSender, !isMyMessage && { color: colors.primary }]}>{repliedToMessageSenderName}</Text>
+              <Text style={[styles.repliedMessageText, !isMyMessage && { color: colors.textSub }]}>{item.replyToMessageText}</Text>
             </View>
           )}
           {item.isDeleted ? (
-            <Text style={styles.deletedMessageText}>Mesaj silindi</Text>
+            <Text style={[styles.deletedMessageText, !isMyMessage && { color: colors.textSub }]}>Mesaj silindi</Text>
           ) : (
             <>
-              <Text style={styles.messageText}>{item.text}</Text>
+              <Text style={[styles.messageText, !isMyMessage && { color: colors.textMain }]}>{item.text}</Text>
               {item.updatedAt && (
-                <Text style={styles.editedMessageText}>Düzeltildi</Text>
+                <Text style={[styles.editedMessageText, !isMyMessage && { color: colors.textSub }]}>Düzeltildi</Text>
               )}
             </>
           )}
         </View>
         {isMyMessage && (
-          <Image
-            source={profileImageUrl ? { uri: profileImageUrl } : require('../../assets/images/ProfileSquare.png')}
-            style={[styles.messageAvatar, { marginLeft: '3%' }]}
-          />
+          profileImageUrl ? (
+            <Image
+              source={{ uri: profileImageUrl }}
+              style={[styles.messageAvatar, { marginLeft: '3%' }]}
+            />
+          ) : (
+            <MaterialCommunityIcons
+              name="account-circle"
+              size={28}
+              color={colors.textSub}
+              style={{ marginLeft: '3%' }}
+            />
+          )
         )}
       </Pressable>
     );
-  }, [currentUserId, currentUserProfileImageUrl, recipientProfileImageUrl, messages, recipientName, styles]);
+  }, [currentUserId, currentUserProfileImageUrl, recipientProfileImageUrl, messages, recipientName, styles, colors]);
 
   const getUserTitle = () => {
     const titles = [recipientCompany, recipientJob, recipientSchool].filter(
@@ -382,10 +408,19 @@ export default function SendMessage() {
           />
         </Pressable>
         <View style={styles.profileInfo}>
-          <Image
-            source={recipientProfileImageUrl ? { uri: recipientProfileImageUrl } : require('../../assets/images/ProfileSquare.png')}
-            style={styles.profileImage}
-          />
+          {recipientProfileImageUrl ? (
+            <Image
+              source={{ uri: recipientProfileImageUrl }}
+              style={styles.profileImage}
+            />
+          ) : (
+            <MaterialCommunityIcons
+              name="account-circle"
+              size={40}
+              color={colors.textSub}
+              style={{ marginRight: '3%' }}
+            />
+          )}
           <View>
             <Text style={styles.userName}>{recipientName}</Text>
             {getUserTitle() ? <Text style={styles.userTitle}>{getUserTitle()}</Text> : null}

@@ -5,6 +5,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Image,
   KeyboardAvoidingView,
   Modal,
@@ -23,6 +24,7 @@ import { db } from '../../firebaseConfig';
 import { logoutUser } from '../redux/userSlice';
 import { toggleTheme } from '../redux/themeSlice';
 import { lightTheme, darkTheme } from '../theme/colors';
+import { deleteUserData } from '../utils/deleteUser';
 
 const settingsOptions = [
   'Ad, konum ve sektörü düzenle',
@@ -50,21 +52,44 @@ const SettingsPage = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleLogout = async () => {
     try {
       await AsyncStorage.multiRemove(['isBiometricEnabled', 'rememberMe', 'userCredentials', 'userId']);
       dispatch(logoutUser());
       setShowLogoutModal(false);
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Loading' }],
-      });
     } catch (e) {
       console.error('Oturum kapatılırken hata:', e);
       dispatch(logoutUser());
-      navigation.reset({ index: 0, routes: [{ name: 'Loading' }] });
     }
+  };
+
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      '⚠️ Hesabı Sil',
+      'Hesabınızı silmek istediğinizden emin misiniz? Bu işlem geri alınamaz! Yaptığınız tüm paylaşımlar, projeler, takipler ve mesajlar kalıcı olarak silinecektir.',
+      [
+        { text: 'İptal', style: 'cancel' },
+        {
+          text: 'Evet, Hesabımı Sil',
+          style: 'destructive',
+          onPress: async () => {
+            setIsDeleting(true);
+            try {
+              await deleteUserData(userId);
+              Alert.alert('✅ Başarılı', 'Hesabınız ve tüm verileriniz başarıyla silindi.');
+              await handleLogout();
+            } catch (err) {
+              console.error("Hesap silinirken hata:", err);
+              Alert.alert('Hata', 'Hesap silinirken bir hata oluştu. Lütfen tekrar deneyin.');
+            } finally {
+              setIsDeleting(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   const fetchUser = useCallback(async () => {
@@ -95,11 +120,13 @@ const SettingsPage = () => {
     fetchUser().then(() => setRefreshing(false));
   }, [fetchUser]);
 
-  if (loading) {
+  if (loading || isDeleting) {
     return (
       <SafeAreaView style={[styles.container, styles.centerContent]}>
         <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.loadingText}>Yükleniyor...</Text>
+        <Text style={styles.loadingText}>
+          {isDeleting ? 'Hesabınız siliniyor...' : 'Yükleniyor...'}
+        </Text>
       </SafeAreaView>
     );
   }
@@ -157,6 +184,7 @@ const SettingsPage = () => {
                     onPress={() => {
                       if (option === 'Oturumu Kapat') setShowLogoutModal(true);
                       else if (option === 'Tema Değiştir') dispatch(toggleTheme());
+                      else if (option === 'Hesabı Sil') handleDeleteAccount();
                     }}
                   >
                     <Text style={styles.optionText}>{option === 'Tema Değiştir' ? `Tema Değiştir (${themeMode === 'light' ? 'Açık' : 'Koyu'})` : option}</Text>

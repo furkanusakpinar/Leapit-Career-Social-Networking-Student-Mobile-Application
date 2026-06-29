@@ -23,6 +23,7 @@ import { db } from '../../firebaseConfig';
 import VideoPlayer from '../components/VideoPlayer';
 import Toast, { BaseToast, ErrorToast } from 'react-native-toast-message';
 import { lightTheme, darkTheme } from '../theme/colors';
+import { uploadToCloudinary } from '../utils/cloudinary';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -113,16 +114,17 @@ export function SharePage() {
 
     try {
       let finalMediaUri = currentMedia.uri;
-      if (Platform.OS === 'android' && finalMediaUri && !finalMediaUri.startsWith('file://') && !finalMediaUri.startsWith('http')) {
-        finalMediaUri = 'file://' + finalMediaUri;
+      if (finalMediaUri && !finalMediaUri.startsWith('http')) {
+        // Upload to Cloudinary first
+        finalMediaUri = await uploadToCloudinary(finalMediaUri, currentMedia.type);
       }
 
       await addDoc(collection(db, 'Posts'), {
         userId,
         userName: userData?.fullName || 'İsimsiz',
         content: newPost.trim(),
-        mediaUri: finalMediaUri,
-        mediaType: currentMedia.type,
+        mediaUri: finalMediaUri || '',
+        mediaType: currentMedia.type || null,
         createdAt: serverTimestamp(),
       });
 
@@ -137,6 +139,7 @@ export function SharePage() {
       }, 500);
 
     } catch (error) {
+      console.error("Post upload/share error:", error);
       Toast.show({ type: 'error', text1: 'Hata', text2: 'Paylaşılamadı.' });
     } finally {
       setUploading(false);
@@ -210,7 +213,7 @@ export function SharePage() {
           </View>
         </Animated.View>
       </TouchableWithoutFeedback>
-      <Toast config={toastConfig} />
+
     </SafeAreaView>
   );
 }

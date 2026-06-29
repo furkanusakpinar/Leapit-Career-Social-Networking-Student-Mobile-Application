@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useIsFocused } from '@react-navigation/native';
 import {
   collection,
   doc,
@@ -33,6 +33,7 @@ const { width } = Dimensions.get('window');
 
 const Social = () => {
   const navigation = useNavigation();
+  const isFocused = useIsFocused();
   const userId = useSelector(state => state.user.userId);
   const [conversations, setConversations] = useState([]);
   const [connectionSuggestions, setConnectionSuggestions] = useState([]);
@@ -90,6 +91,18 @@ const Social = () => {
     const q = query(collection(db, 'Users', userId, 'chats'), orderBy('lastMessageCreatedAt', 'desc'));
 
     unsubscribeRef.current = onSnapshot(q, async (snapshot) => {
+      const unreadDocRefs = [];
+      snapshot.docs.forEach(docSnap => {
+        if (isFocused && docSnap.data().unread === true) {
+          unreadDocRefs.push(docSnap.ref);
+        }
+      });
+
+      if (unreadDocRefs.length > 0) {
+        Promise.all(unreadDocRefs.map(ref => updateDoc(ref, { unread: false })))
+          .catch(err => console.error("Error auto-reading chats:", err));
+      }
+
       const convArr = await Promise.all(snapshot.docs.map(async (docSnap) => {
         const data = docSnap.data();
         let profileImageUrl = data.otherUserProfileImageUrl;
@@ -114,7 +127,7 @@ const Social = () => {
           profileImageUrl: profileImageUrl,
           lastMessage: data.lastMessageText,
           time: data.lastMessageCreatedAt ? formatTime(data.lastMessageCreatedAt.toDate()) : '',
-          unread: data.unread || false,
+          unread: isFocused ? false : (data.unread || false),
         };
       }));
 
@@ -125,7 +138,7 @@ const Social = () => {
       console.error("Snapshot hatası:", error);
       setRefreshing(false);
     });
-  }, [userId, formatTime]);
+  }, [userId, formatTime, isFocused]);
 
   
   useEffect(() => {

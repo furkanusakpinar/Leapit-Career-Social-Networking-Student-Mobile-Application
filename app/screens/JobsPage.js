@@ -20,14 +20,16 @@ import {
 } from 'react-native';
 import { useSelector } from 'react-redux';
 import { db } from '../../firebaseConfig';
-import { lightTheme, darkTheme } from '../theme/colors';
+import { darkTheme, lightTheme } from '../theme/colors';
 import { getCompanyLogoUri } from '../utils/getCompanyLogoUri';
 
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AppHeader from '../components/AppHeader';
 import BottomNavBar from '../components/BottomNavBar';
 
 const JobsPage = () => {
   const [posts, setPosts] = useState([]);
+  const [pendingPosts, setPendingPosts] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [jobTabFilterIndex, setJobTabFilterIndex] = useState(0);
   const [userProfession, setUserProfession] = useState(null);
@@ -44,7 +46,7 @@ const JobsPage = () => {
   const colors = themeMode === 'light' ? lightTheme : darkTheme;
   const styles = getStyles(colors);
 
-  
+
   useEffect(() => {
     const fetchUserData = async () => {
       if (userId) {
@@ -67,15 +69,26 @@ const JobsPage = () => {
   const fetchJobPosts = useCallback(() => {
     setRefreshing(true);
     const postsRef = collection(db, 'JobsPosts');
-    const unsubscribe = onSnapshot(query(postsRef, where('status', '==', 'active')), (snapshot) => {
+    const unsubscribe = onSnapshot(query(postsRef, where('status', '==', 'active')), async (snapshot) => {
       let allPosts = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
         createdAt: doc.data().createdAt?.toDate() || new Date(),
       }));
 
-      
-      setPosts(allPosts.sort((a, b) => b.createdAt - a.createdAt));
+      const postsWithLogos = await Promise.all(
+        allPosts.map(async (post) => {
+          try {
+            const logoUri = await getCompanyLogoUri(post.company || '');
+            return { ...post, companyLogo: logoUri };
+          } catch (e) {
+            console.error('Error fetching company logo:', e);
+            return { ...post, companyLogo: null };
+          }
+        })
+      );
+
+      setPosts(postsWithLogos.sort((a, b) => b.createdAt - a.createdAt));
       setRefreshing(false);
     });
     return unsubscribe;
@@ -91,11 +104,39 @@ const JobsPage = () => {
     fetchJobPosts();
   }, [fetchJobPosts]);
 
+  // Fetch current user's pending posts with logos
+  useEffect(() => {
+    if (!userId) return;
+    const postsRef = collection(db, 'JobsPosts');
+    const unsubscribe = onSnapshot(
+      query(postsRef, where('userId', '==', userId), where('status', '==', 'pending')),
+      async (snapshot) => {
+        const rawPending = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          createdAt: doc.data().createdAt?.toDate() || new Date(),
+        }));
+        const pendingWithLogos = await Promise.all(
+          rawPending.map(async (post) => {
+            try {
+              const logoUri = await getCompanyLogoUri(post.company || '');
+              return { ...post, companyLogo: logoUri };
+            } catch (e) {
+              return { ...post, companyLogo: null };
+            }
+          })
+        );
+        setPendingPosts(pendingWithLogos.sort((a, b) => b.createdAt - a.createdAt));
+      }
+    );
+    return () => unsubscribe();
+  }, [userId]);
+
   return (
     <View style={styles.container}>
       <AppHeader />
 
-      {}
+      { }
       {showSearchResults && searchQuery.length > 0 && (
         <View style={styles.searchResultsOverlay}>
           <ScrollView style={styles.searchResultsScrollView} keyboardShouldPersistTaps="handled">
@@ -115,7 +156,7 @@ const JobsPage = () => {
         </View>
       )}
 
-      {}
+      { }
       <View style={styles.selectedHeader}>
         <Pressable onPress={() => setJobTabFilterIndex(0)} style={styles.tabButton}>
           <Text style={[styles.tabText, jobTabFilterIndex === 0 && styles.tabSelected]}>Sizin için</Text>
@@ -125,44 +166,95 @@ const JobsPage = () => {
           <Text style={[styles.tabText, jobTabFilterIndex === 1 && styles.tabSelected]}>Keşfet</Text>
           {jobTabFilterIndex === 1 && <View style={styles.tabUnderline} />}
         </Pressable>
+        <Pressable onPress={() => setJobTabFilterIndex(2)} style={styles.tabButton}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={[styles.tabText, jobTabFilterIndex === 2 && styles.tabSelected]}>Bekleyenler</Text>
+            {pendingPosts.length > 0 && (
+              <View style={styles.pendingBadge}>
+                <Text style={styles.pendingBadgeText}>{pendingPosts.length}</Text>
+              </View>
+            )}
+          </View>
+          {jobTabFilterIndex === 2 && <View style={styles.tabUnderline} />}
+        </Pressable>
       </View>
 
       <ScrollView
         contentContainerStyle={styles.scrollViewContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
       >
-        {posts.length > 0 ? (
-          posts.map(post => (
-            <View key={post.id} style={styles.card}>
-              <View style={styles.cardHeader}>
-                <Pressable
-                  onPress={() => navigation.navigate('JobsDetail', { jobsId: post.id })}
-                  style={styles.cardHeaderPressable}
-                >
-                  <Image
-                    source={
-                      post.company && typeof getCompanyLogoUri(post.company) === 'string' && getCompanyLogoUri(post.company).length > 0
-                        ? { uri: getCompanyLogoUri(post.company) }
-                        : require('../../assets/images/ProfileSquare.png')
-                    }
-                    style={styles.logo}
-                  />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.cardDesc} numberOfLines={1}>{post.jobTitle}</Text>
-                    <Text style={styles.cardName} numberOfLines={1}>
-                      {post.company} • {post.location}
-                    </Text>
+        {jobTabFilterIndex === 2 ? (
+          // Onay Bekleyen İlanlar
+          pendingPosts.length > 0 ? (
+            pendingPosts.map(post => (
+              <View key={post.id} style={[styles.card, { borderColor: '#f59e0b', borderWidth: 1.5 }]}>
+                <View style={styles.cardHeader}>
+                  <View style={styles.cardHeaderPressable}>
+                    <Image
+                      source={
+                        post.companyLogo && post.companyLogo.length > 0
+                          ? { uri: post.companyLogo }
+                          : require('../../assets/images/DefaultCompanyLogo.png')
+                      }
+                      style={styles.logo}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.cardDesc} numberOfLines={1}>{post.jobTitle?.length > 30 ? post.jobTitle.slice(0, 30) + '...' : post.jobTitle}</Text>
+                      <Text style={styles.cardName} numberOfLines={1}>
+                        {post.company} • {post.jobLocation}
+                      </Text>
+                    </View>
                   </View>
-                </Pressable>
+                </View>
+                <View style={styles.pendingStatusRow}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <MaterialCommunityIcons name="timer-sand" size={16} color="#f59e0b" />
+                    <Text style={styles.pendingStatusText}>Onay bekleniyor</Text>
+                  </View>
+                  <Text style={styles.pendingDateText}>
+                    {post.createdAt instanceof Date ? post.createdAt.toLocaleDateString('tr-TR') : ''}
+                  </Text>
+                </View>
               </View>
-              {post.media && typeof post.media === 'string' && post.media.length > 0 ? (
-                <Image source={{ uri: post.media }} style={styles.cardImage} />
-              ) : null}
-              {post.content && <Text style={styles.postContent}>{post.content}</Text>}
-            </View>
-          ))
+            ))
+          ) : (
+            <Text style={styles.noPostsText}>Onay bekleyen ilanınız bulunmamaktadır.</Text>
+          )
         ) : (
-          !refreshing && <Text style={styles.noPostsText}>Henüz iş ilanı bulunmamaktadır.</Text>
+          // Sizin için / Keşfet
+          posts.length > 0 ? (
+            posts.map(post => (
+              <View key={post.id} style={styles.card}>
+                <View style={styles.cardHeader}>
+                  <Pressable
+                    onPress={() => navigation.navigate('JobsDetail', { jobsId: post.id })}
+                    style={styles.cardHeaderPressable}
+                  >
+                    <Image
+                      source={
+                        post.companyLogo && post.companyLogo.length > 0
+                          ? { uri: post.companyLogo }
+                          : require('../../assets/images/DefaultCompanyLogo.png')
+                      }
+                      style={styles.logo}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.cardDesc} numberOfLines={1}>{post.jobTitle?.length > 30 ? post.jobTitle.slice(0, 30) + '...' : post.jobTitle}</Text>
+                      <Text style={styles.cardName} numberOfLines={1}>
+                        {post.company} • {post.jobLocation}
+                      </Text>
+                    </View>
+                  </Pressable>
+                </View>
+                {post.media && typeof post.media === 'string' && post.media.length > 0 ? (
+                  <Image source={{ uri: post.media }} style={styles.cardImage} />
+                ) : null}
+                {post.content && <Text style={styles.postContent}>{post.content}</Text>}
+              </View>
+            ))
+          ) : (
+            !refreshing && <Text style={styles.noPostsText}>Henüz iş ilanı bulunmamaktadır.</Text>
+          )
         )}
       </ScrollView>
       <BottomNavBar userId={userId} />
@@ -294,6 +386,39 @@ const getStyles = (colors) => StyleSheet.create({
     fontWeight: '500',
   },
   searchResultSubText: {
+    color: colors.textSub,
+    fontSize: 12,
+  },
+  pendingBadge: {
+    backgroundColor: '#f59e0b',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 5,
+    paddingHorizontal: 4,
+  },
+  pendingBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: 'bold',
+  },
+  pendingStatusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  pendingStatusText: {
+    color: '#f59e0b',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  pendingDateText: {
     color: colors.textSub,
     fontSize: 12,
   },

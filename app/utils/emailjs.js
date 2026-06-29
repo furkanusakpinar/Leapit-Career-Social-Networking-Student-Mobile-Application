@@ -1,8 +1,8 @@
 
 
 
-const PUBLIC_KEY = process.env.EXPO_PUBLIC_EMAILJS_PUBLIC_KEY;
-const PRIVATE_KEY = process.env.EXPO_PUBLIC_EMAILJS_PRIVATE_KEY;
+const PUBLIC_KEY = "wtMfhAa4peU_gJPdX";
+const PRIVATE_KEY = "C5wgr0Mviin2ki6JDLOmn";
 
 
 export const sendEmail = async (serviceId, templateId, templateParams) => {

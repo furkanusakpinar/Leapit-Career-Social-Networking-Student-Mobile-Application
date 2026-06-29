@@ -93,17 +93,17 @@ const AppHeader = () => {
         }
       });
 
-      
+      // Jobs
       const jobsRef = collection(db, 'JobsPosts');
       const querySnapshotJobs = await getDocs(jobsRef);
       querySnapshotJobs.forEach((docSnap) => {
         const jData = docSnap.data();
-        if (jData.title && normalizeText(jData.title).includes(normalizedText)) {
+        if (jData.jobTitle && normalizeText(jData.jobTitle).includes(normalizedText)) {
           results.push({
             type: 'job',
             id: docSnap.id,
-            title: jData.title,
-            company: jData.companyName || 'Bilinmeyen Şirket',
+            title: jData.jobTitle,
+            company: jData.company || 'Bilinmeyen Şirket',
           });
         }
       });
@@ -125,7 +125,7 @@ const AppHeader = () => {
     setSearchQuery('');
     setShowSearchResults(false);
     Keyboard.dismiss();
-    const routes = { user: 'OtherProfilePage', job: 'JobDetailPage', company: 'CompanyProfilePage', school: 'SchoolProfilePage' };
+    const routes = { user: 'OtherProfilePage', job: 'JobsDetail', company: 'CompanyProfilePage', school: 'SchoolProfilePage' };
     const params = { user: { userId: result.id }, job: { jobId: result.id }, company: { companyId: result.id, companyName: result.name }, school: { schoolId: result.id, schoolName: result.name } };
     navigation.navigate(routes[result.type], params[result.type]);
   };
@@ -180,9 +180,9 @@ const AppHeader = () => {
         </Pressable>
       </View>
 
-      {}
+      {/* Arama Sonuçları Listesi */}
       {showSearchResults && searchQuery.length > 0 && (
-        <View style={styles.searchResultsOverlay}>
+        <View style={[styles.searchResultsOverlay, { top: insets.top + 68 }]}>
           {searchResults.length > 0 ? (
             <ScrollView style={styles.searchResultsScrollView} keyboardShouldPersistTaps="handled">
               {searchResults.map((result, index) => (
