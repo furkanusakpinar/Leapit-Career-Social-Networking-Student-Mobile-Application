@@ -56,6 +56,7 @@ Leapit is a modern, feature-rich, and user-friendly job and social networking pl
 
 <div align="center">
   <p>
+<<<<<<< HEAD
     <img src="assets/test/appPhoto1.png" width="185" alt="App Screenshot 1" />
     <img src="assets/test/appPhoto2.png" width="185" alt="App Screenshot 2" />
     <img src="assets/test/appPhoto3.png" width="185" alt="App Screenshot 3" />
@@ -71,6 +72,23 @@ Leapit is a modern, feature-rich, and user-friendly job and social networking pl
     <img src="assets/test/appPhoto9.png" width="185" alt="App Screenshot 9" />
     <img src="assets/test/appPhoto10.png" width="185" alt="App Screenshot 10" />
     <img src="assets/test/appPhoto11.png" width="185" alt="App Screenshot 11" />
+=======
+    <img src="assets/test/appPhoto1.jpeg" width="185" alt="App Screenshot 1" />
+    <img src="assets/test/appPhoto2.jpeg" width="185" alt="App Screenshot 2" />
+    <img src="assets/test/appPhoto3.jpeg" width="185" alt="App Screenshot 3" />
+    <img src="assets/test/appPhoto4.jpeg" width="185" alt="App Screenshot 4" />
+  </p>
+  <p>
+    <img src="assets/test/appPhoto5.jpeg" width="185" alt="App Screenshot 5" />
+    <img src="assets/test/appPhoto6.jpeg" width="185" alt="App Screenshot 6" />
+    <img src="assets/test/appPhoto7.jpeg" width="185" alt="App Screenshot 7" />
+    <img src="assets/test/appPhoto8.jpeg" width="185" alt="App Screenshot 8" />
+  </p>
+  <p>
+    <img src="assets/test/appPhoto9.jpeg" width="185" alt="App Screenshot 9" />
+    <img src="assets/test/appPhoto10.jpeg" width="185" alt="App Screenshot 10" />
+    <img src="assets/test/appPhoto11.jpeg" width="185" alt="App Screenshot 11" />
+>>>>>>> d03a938e2d025ca3e231468bd8591a85aaca01f7
   </p>
 </div>
 
@@ -93,4 +111,8 @@ cd Leapit
 npm install
 
 # Start the application
+<<<<<<< HEAD
 npx expo start
+=======
+npx expo start
+>>>>>>> d03a938e2d025ca3e231468bd8591a85aaca01f7
