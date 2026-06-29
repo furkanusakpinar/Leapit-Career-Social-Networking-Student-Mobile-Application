@@ -73,7 +73,7 @@ Leapit is a modern, feature-rich, and user-friendly job and social networking pl
     <img src="assets/test/appPhoto10.png" width="185" alt="App Screenshot 10" />
     <img src="assets/test/appPhoto11.png" width="185" alt="App Screenshot 11" />
 =======
-    <img src="assets/test/appPhoto1.jpeg" width="185" alt="App Screenshot 1" />
+    <img src="/assets/test/appPhoto1.jpeg" width="185" alt="App Screenshot 1" />
     <img src="assets/test/appPhoto2.jpeg" width="185" alt="App Screenshot 2" />
     <img src="assets/test/appPhoto3.jpeg" width="185" alt="App Screenshot 3" />
     <img src="assets/test/appPhoto4.jpeg" width="185" alt="App Screenshot 4" />
