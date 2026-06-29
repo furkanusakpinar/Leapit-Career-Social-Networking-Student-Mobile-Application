@@ -54,17 +54,25 @@ Leapit is a modern, feature-rich, and user-friendly job and social networking pl
 
 ## 📱 Screenshots
 
-<p>
-  <img src="assets/images/IMG_2076.PNG" width="185" />
-  <img src="assets/images/IMG_2077.PNG" width="185" />
-  <img src="assets/images/IMG_2078.PNG" width="185" />
-  <img src="assets/images/IMG_2079.PNG" width="185" />
-</p>
-<p>
-  <img src="assets/images/IMG_2080.PNG" width="185" />
-  <img src="assets/images/IMG_2081.PNG" width="185" />
-  <img src="assets/images/IMG_2082.PNG" width="185" />
-</p>
+<div align="center">
+  <p>
+    <img src="assets/test/appPhoto1.png" width="185" alt="App Screenshot 1" />
+    <img src="assets/test/appPhoto2.png" width="185" alt="App Screenshot 2" />
+    <img src="assets/test/appPhoto3.png" width="185" alt="App Screenshot 3" />
+    <img src="assets/test/appPhoto4.png" width="185" alt="App Screenshot 4" />
+  </p>
+  <p>
+    <img src="assets/test/appPhoto5.png" width="185" alt="App Screenshot 5" />
+    <img src="assets/test/appPhoto6.png" width="185" alt="App Screenshot 6" />
+    <img src="assets/test/appPhoto7.png" width="185" alt="App Screenshot 7" />
+    <img src="assets/test/appPhoto8.png" width="185" alt="App Screenshot 8" />
+  </p>
+  <p>
+    <img src="assets/test/appPhoto9.png" width="185" alt="App Screenshot 9" />
+    <img src="assets/test/appPhoto10.png" width="185" alt="App Screenshot 10" />
+    <img src="assets/test/appPhoto11.png" width="185" alt="App Screenshot 11" />
+  </p>
+</div>
 
 ---
 
@@ -76,7 +84,7 @@ Follow these steps to run the project in your local environment:
 
 ```bash
 # Clone the repository
-git clone https://github.com/furkanusakpinar/Leapit-Career-Social-Networking-Student-Mobile-Application.git
+git clone [https://github.com/furkanusakpinar/Leapit-Career-Social-Networking-Student-Mobile-Application.git](https://github.com/furkanusakpinar/Leapit-Career-Social-Networking-Student-Mobile-Application.git)
 
 # Navigate to project folder
 cd Leapit
@@ -86,6 +94,3 @@ npm install
 
 # Start the application
 npx expo start
-```
-
-</div>
