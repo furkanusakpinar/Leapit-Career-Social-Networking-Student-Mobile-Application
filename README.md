@@ -4,83 +4,88 @@
 
 <img src="assets/images/LeapitLogo.png" width="125" />
 
-**Üniversite öğrencileri ve yeni mezunlar için tasarlanmış kapsamlı bir kariyer ve sosyal ağ platformu.**
+**A comprehensive career and social networking platform designed for university students and recent graduates.**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+<br />
+
 [![Expo](https://img.shields.io/badge/Expo-4630EB?style=for-the-badge&logo=expo&logoColor=white)](https://expo.dev/)
 [![React Native](https://img.shields.io/badge/React_Native-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://reactnative.dev/)
 [![Firebase](https://img.shields.io/badge/firebase-ffca28?style=for-the-badge&logo=firebase&logoColor=black)](https://firebase.google.com/)
 [![Redux](https://img.shields.io/badge/redux-%23593d88.svg?style=for-the-badge&logo=redux&logoColor=white)](https://redux.js.org/)
 [![TypeScript](https://img.shields.io/badge/typescript-%23007acc.svg?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 
-Leapit, iş arayanlar, şirketler ve eğitim kurumları için tasarlanmış modern, özellikli ve kullanıcı dostu bir iş ve sosyal ağ platformudur. React Native ve Expo kullanılarak geliştirilen bu uygulama, kullanıcıların iş ilanlarına başvurmasını, şirketlerin adayları yönetmesini ve profesyonel bir ağ kurmasını sağlar.
+<br />
 
-</div>
+Leapit is a modern, feature-rich, and user-friendly job and social networking platform designed for job seekers, companies, and educational institutions. Built with React Native and Expo, this application allows users to apply for job postings, companies to manage candidates, and everyone to build a professional network.
 
+---
 
+## ✨ Core Features
 
-## ✨ Temel Özellikler
+**Job Postings & Management:** Create job listings, review applications, and manage the approval process.
 
-*   **İş İlanları & Yönetimi:** İş ilanları oluşturma, başvuruları inceleme ve onay süreci.
-*   **Çoklu Profil Desteği:** Öğrenci, Şirket ve Okul profilleri için özelleştirilmiş arayüzler.
-*   **Sosyal Ağ:** Diğer kullanıcılarla bağlantı kurma, paylaşım yapma ve etkileşimde bulunma.
-*   **Gerçek Zamanlı Mesajlaşma:** Firebase tabanlı anlık mesajlaşma sistemi.
-*   **Blog Sistemi:** Profesyonel içerikler paylaşma ve okuma alanı.
-*   **Bildirimler:** Önemli güncellemeler ve etkileşimler için anlık bildirim sistemi.
-*   **Karanlık/Aydınlık Mod:** Kullanıcı tercihine göre dinamik tema desteği.
+**Multi-Profile Support:** Customized interfaces for Student, Company, and School profiles.
 
-## 🛠️ Teknoloji Yığını
+**Social Network:** Connect with other users, share posts, and interact seamlessly.
 
-*   **Frontend:** React Native, Expo
-*   **State Management:** Redux Toolkit
-*   **Backend & Veritabanı:** Firebase (Firestore, Auth)
-*   **Stil:** React Native StyleSheet (Premium Tasarım)
-*   **Diğer:** EmailJS (Bildirimler için), Cloudinary (Medya yönetimi)
+**Real-Time Messaging:** Instant messaging system powered by Firebase.
 
-## 🚀 Başlangıç
+**Blog System:** A dedicated space for sharing and reading professional content.
 
-Projeyi yerel ortamınızda çalıştırmak için şu adımları izleyin:
+**Notifications:** Instant push notification system for important updates and interactions.
 
-### 1. Depoyu Klonlayın
+**Dark/Light Mode:** Dynamic theme support based on user preference.
+
+---
+
+## 🛠️ Technology Stack
+
+**Frontend:** React Native, Expo
+
+**State Management:** Redux Toolkit
+
+**Backend & Database:** Firebase (Firestore, Auth)
+
+**Styling:** React Native StyleSheet (Premium Design)
+
+**Others:** EmailJS (For notifications), Cloudinary (Media management)
+
+---
+
+## 📱 Screenshots
+
+<p>
+  <img src="assets/images/IMG_2076.PNG" width="185" />
+  <img src="assets/images/IMG_2077.PNG" width="185" />
+  <img src="assets/images/IMG_2078.PNG" width="185" />
+  <img src="assets/images/IMG_2079.PNG" width="185" />
+</p>
+<p>
+  <img src="assets/images/IMG_2080.PNG" width="185" />
+  <img src="assets/images/IMG_2081.PNG" width="185" />
+  <img src="assets/images/IMG_2082.PNG" width="185" />
+</p>
+
+---
+
+## 🚀 Getting Started
+
+Follow these steps to run the project in your local environment:
+
+<div align="left">
+
 ```bash
-git clone https://github.com/furkanusakpinar/Leapit.git
-```
+# Clone the repository
+git clone https://github.com/furkanusakpinar/Leapit-Career-Social-Networking-Student-Mobile-Application.git
 
-### 2. Bağımlılıkları Yükleyin
-```bash
+# Navigate to project folder
+cd Leapit
+
+# Install dependencies
 npm install
-```
 
-### 3. Çevresel Değişkenleri Ayarlayın
-Kök dizinde bir `.env` dosyası oluşturun ve aşağıdaki anahtarları kendi değerlerinizle doldurun:
-
-```env
-EXPO_PUBLIC_FIREBASE_API_KEY=your_api_key
-EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=your_auth_domain
-EXPO_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
-EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=your_storage_bucket
-EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_messaging_id
-EXPO_PUBLIC_FIREBASE_APP_ID=your_app_id
-EXPO_PUBLIC_EMAILJS_PUBLIC_KEY=your_emailjs_key
-```
-
-### 4. Uygulamayı Başlatın
-```bash
+# Start the application
 npx expo start
 ```
 
-## 📱 Ekran Görüntüleri
-
-<div align="center">
-  <p>
-    <img src="assets/images/IMG_2076.PNG" width="185" />
-    <img src="assets/images/IMG_2077.PNG" width="185" />
-    <img src="assets/images/IMG_2078.PNG" width="185" />
-    <img src="assets/images/IMG_2079.PNG" width="185" />
-  </p>
-  <p>
-    <img src="assets/images/IMG_2080.PNG" width="185" />
-    <img src="assets/images/IMG_2081.PNG" width="185" />
-    <img src="assets/images/IMG_2082.PNG" width="185" />
-  </p>
 </div>
