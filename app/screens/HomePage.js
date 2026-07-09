@@ -1,4 +1,6 @@
 import { useNavigation } from '@react-navigation/native';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import {
   arrayRemove,
   arrayUnion,
@@ -10,6 +12,7 @@ import {
   onSnapshot,
   orderBy,
   query,
+  setDoc,
   updateDoc,
   where,
 } from 'firebase/firestore';
@@ -59,7 +62,7 @@ const truncateString = (str, maxLength) => {
   return str.length <= maxLength ? str : str.substring(0, maxLength - 3) + '...';
 };
 
-const ActionButton = ({ source, onPress, isActive, activeColor, inactiveColor, label, iconStyle, textSub, styles }) => {
+const ActionButton = ({ iconComponent, onPress, isActive, activeColor, inactiveColor, label, iconStyle, textSub, styles }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const handlePress = () => {
@@ -72,14 +75,14 @@ const ActionButton = ({ source, onPress, isActive, activeColor, inactiveColor, l
 
   return (
     <Pressable style={styles.actionButton} onPress={handlePress}>
-      <Animated.Image
-        source={source}
+      <Animated.View
         style={[
-          styles.actionIcon,
-          iconStyle,
-          { transform: [{ scale: scaleAnim }], tintColor: isActive ? activeColor : inactiveColor }
+          styles.actionIconContainer,
+          { transform: [{ scale: scaleAnim }] }
         ]}
-      />
+      >
+        {iconComponent({ color: isActive ? activeColor : inactiveColor, size: 20 })}
+      </Animated.View>
       {label && (
         <Text style={[styles.actionLabel, { color: textSub }, isActive && { color: activeColor }]}>{label}</Text>
       )}
@@ -123,7 +126,9 @@ const PostActions = ({ post, colors, styles, onAction, onCommentPress }) => {
 
       <View style={styles.cardActions}>
         <ActionButton
-          source={post.liked ? require('../../assets/images/RedLike.png') : require('../../assets/images/Heart.png')}
+          iconComponent={(props) => (
+            <MaterialCommunityIcons name={post.liked ? "heart" : "heart-outline"} {...props} />
+          )}
           isActive={post.liked}
           activeColor="#FF4B4B"
           inactiveColor={colors.iconTint}
@@ -133,7 +138,9 @@ const PostActions = ({ post, colors, styles, onAction, onCommentPress }) => {
           onPress={() => onAction(post.id, 'likedBy', post.liked)}
         />
         <ActionButton
-          source={require('../../assets/images/Comment.png')}
+          iconComponent={(props) => (
+            <MaterialCommunityIcons name="comment-outline" {...props} />
+          )}
           label="Comment"
           inactiveColor={colors.iconTint}
           textSub={colors.textSub}
@@ -141,7 +148,9 @@ const PostActions = ({ post, colors, styles, onAction, onCommentPress }) => {
           onPress={() => onCommentPress(post.id)}
         />
         <ActionButton
-          source={post.repeated ? require('../../assets/images/PinkRepeat.png') : require('../../assets/images/Repeat.png')}
+          iconComponent={(props) => (
+            <MaterialCommunityIcons name={post.repeated ? "repeat" : "repeat-variant"} {...props} />
+          )}
           isActive={post.repeated}
           activeColor="#00BA7C"
           inactiveColor={colors.iconTint}
@@ -151,7 +160,9 @@ const PostActions = ({ post, colors, styles, onAction, onCommentPress }) => {
           onPress={() => onAction(post.id, 'repeatedBy', post.repeated)}
         />
         <ActionButton
-          source={require('../../assets/images/Share.png')}
+          iconComponent={(props) => (
+            <MaterialIcons name="share" {...props} />
+          )}
           label="Send"
           inactiveColor={colors.iconTint}
           textSub={colors.textSub}
@@ -181,6 +192,11 @@ const HomePage = () => {
   const [activePostId, setActivePostId] = useState(null);
   const [optionsPost, setOptionsPost] = useState(null);
   const [menuAnchorY, setMenuAnchorY] = useState(0);
+
+  const handleToggleSave = async (post) => {
+    await handleAction(post.id, 'savedBy', post.saved);
+    setOptionsPost(null); // Menüyü kapat
+  };
 
   const handleDeleteAllTestUsers = () => {
     Alert.alert(
@@ -213,12 +229,41 @@ const HomePage = () => {
   };
 
   const handleAction = async (postId, field, isActive) => {
-    if (!userId) return;
+    if (!userId) {
+      console.log("Hata: userId bulunamadı!");
+      return;
+    }
+
+    // Save işlemi için özel mantık
+    if (field === 'savedBy') {
+        try {
+            // Kategoriyi gönderinin türüne göre belirle (varsayılan: 'Postlar')
+            // 'Posts' koleksiyonundan gelen verinin yapısına göre kategoriyi belirliyoruz
+            const category = 'Postlar';
+
+            // Yeni yapı: Users/{userId}/saves/{category}/items/{postId}
+            const saveRef = doc(db, 'Users', userId, 'saves', category, 'items', postId);
+
+            if (isActive) {
+                await deleteDoc(saveRef);
+            } else {
+                await setDoc(saveRef, {
+                    postId: postId,
+                    savedAt: new Date()
+                });
+            }
+        } catch (error) {
+            console.error("Save işlemi hatası:", error);
+            Alert.alert("Hata", "Kaydetme işlemi başarısız oldu.");
+        }
+    }
+
     const postRef = doc(db, 'Posts', postId);
     try {
       await updateDoc(postRef, {
         [field]: isActive ? arrayRemove(userId) : arrayUnion(userId)
       });
+      console.log("Post koleksiyonu güncellendi");
     } catch (error) {
       console.error(`${field} hatası:`, error);
     }
@@ -294,10 +339,10 @@ const HomePage = () => {
           userName,
           liked: data.likedBy?.includes(userId) || false,
           repeated: data.repeatedBy?.includes(userId) || false,
-          bookmarked: data.bookmarkedBy?.includes(userId) || false,
+          saved: data.savedBy?.includes(userId) || false,
           likesCount: data.likedBy?.length || 0,
           repeatsCount: data.repeatedBy?.length || 0,
-          bookmarksCount: data.bookmarkedBy?.length || 0,
+          savedCount: data.savedBy?.length || 0,
           commentsCount: data.comments?.length || 0,
           details: detailsArr.join(' | '),
         };
@@ -349,7 +394,8 @@ const HomePage = () => {
                   {post.details?.length > 0 && <Text style={styles.followerCountText}>{truncateString(post.details, 50)}</Text>}
                   <Text style={styles.cardTime}>{moment(post.createdAt?.seconds * 1000).fromNow()} • 🌎</Text>
                 </View>
-                 <Pressable style={styles.optionsContainer} onPress={(event) => onOptionsPress(post, event.nativeEvent.pageY)}>
+
+                <Pressable style={styles.optionsContainer} onPress={(event) => onOptionsPress(post, event.nativeEvent.pageY)}>
                   <Text style={styles.optionsText}>···</Text>
                 </Pressable>
               </View>
@@ -399,8 +445,10 @@ const HomePage = () => {
       <PostOptionsMenu
         visible={!!optionsPost}
         isOwnPost={optionsPost?.userId === userId}
+        isSaved={optionsPost?.saved}
         onDelete={handleDeletePost}
         onReport={handleReportPost}
+        onSave={() => handleToggleSave(optionsPost)}
         onClose={() => setOptionsPost(null)}
         anchorY={menuAnchorY}
       />
@@ -437,6 +485,7 @@ const getStyles = (colors) => StyleSheet.create({
   cardTime: { color: colors.textSub, fontSize: 11, marginTop: 2 },
   optionsContainer: { padding: 5, paddingRight: 0 },
   optionsText: { color: colors.textSub, fontSize: 20, fontWeight: 'bold', marginTop: -15 },
+  saveIconContainer: { marginRight: 10, padding: 5 },
   contentSection: { paddingHorizontal: 15, paddingBottom: 12 },
   cardDescInline: { color: colors.textMain, fontSize: 14, lineHeight: 21 },
   moreText: { color: colors.textSub, fontSize: 14, fontWeight: '600' },
@@ -473,6 +522,7 @@ const getStyles = (colors) => StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 10,
   },
+  actionIconContainer: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
   actionIcon: { width: 20, height: 20, resizeMode: 'contain' },
   actionLabel: { color: colors.textSub, fontSize: 13, marginLeft: 6, fontWeight: '600' },
   deleteAllButton: {

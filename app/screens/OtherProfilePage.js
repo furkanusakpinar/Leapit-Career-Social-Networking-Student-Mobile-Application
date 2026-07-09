@@ -40,6 +40,7 @@ import { getSchoolLogoUri } from '../utils/getSchoolLogoUri';
 import axios from 'axios';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import moment from 'moment';
+import { fetchReadmeFromGithub } from '../utils/github';
 import Animated, {
   runOnJS,
   useAnimatedScrollHandler,
@@ -70,14 +71,14 @@ const formatTimeAgo = (timestamp) => {
   return 'Yakın zamanda';
 };
 
-const buildReadmeHtml = (content, isDark) => {
-  const bg      = isDark ? '#101216' : '#ffffff';
+const buildReadmeHtml = (content, isDark, colors) => {
+  const bg      = colors?.cardBackground || (isDark ? '#1A1D24' : '#ffffff');
   const text    = isDark ? '#e6edf3' : '#1f2328';
   const codeBg  = isDark ? '#161b22' : '#f6f8fa';
   const border  = isDark ? '#30363d' : '#d1d9e0';
   const hBorder = isDark ? '#21262d' : '#d1d9e0';
   const blockBg = isDark ? '#161b22' : '#f6f8fa';
-  const link    = '#0969da';
+  const link    = colors?.primary || '#0066FF';
   const subText = isDark ? '#848d97' : '#636c76';
 
   const raw = content || '';
@@ -163,12 +164,13 @@ const buildReadmeHtml = (content, isDark) => {
 </html>`;
 };
 
-// ─── Project Detail Bottom Sheet ──────────────────────────────────────────────
 function ProjectSheet({ project, visible, onClose, colors, isDark }) {
   const translateY = useSharedValue(SHEET_HEIGHT);
   const opacity = useSharedValue(0);
   const insets = useSafeAreaInsets();
   const [show, setShow] = useState(false);
+  const [readmeContent, setReadmeContent] = useState((project?.readme || project?.content) || '');
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (visible) {
@@ -183,6 +185,24 @@ function ProjectSheet({ project, visible, onClose, colors, isDark }) {
     }
   }, [visible, opacity, translateY]);
 
+  useEffect(() => {
+    if (visible && project) {
+      setReadmeContent(project.readme || project.content || '');
+      
+      if (project.githubUrl) {
+        setLoading(true);
+        fetchReadmeFromGithub(project.githubUrl)
+          .then((fetched) => {
+            if (fetched) {
+              setReadmeContent(fetched);
+            }
+          })
+          .catch((err) => console.log('Dynamic github fetch error:', err))
+          .finally(() => setLoading(false));
+      }
+    }
+  }, [visible, project]);
+
   const sheetStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
   }));
@@ -192,7 +212,7 @@ function ProjectSheet({ project, visible, onClose, colors, isDark }) {
 
   if (!show || !project) return null;
 
-  const readmeHtml = buildReadmeHtml(project.readme || project.content || 'İçerik bulunamadı.', isDark);
+  const readmeHtml = buildReadmeHtml(readmeContent || 'İçerik bulunamadı.', isDark, colors);
 
   return (
     <Modal transparent animationType="none" statusBarTranslucent>
@@ -269,21 +289,28 @@ function ProjectSheet({ project, visible, onClose, colors, isDark }) {
           </View>
         )}
 
-        {/* README WebView */}
-        <WebView
-          source={{ html: readmeHtml }}
-          style={{ flex: 1, backgroundColor: 'transparent' }}
-          scrollEnabled
-          showsVerticalScrollIndicator={false}
-          originWhitelist={['*']}
-          onShouldStartLoadWithRequest={(req) => {
-            if (req.url !== 'about:blank' && req.url.startsWith('http')) {
-              Linking.openURL(req.url);
-              return false;
-            }
-            return true;
-          }}
-        />
+        {/* README WebView / Loader */}
+        {loading && !readmeContent ? (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={{ color: colors.textSub, marginTop: 10, fontSize: 13 }}>GitHub'dan README yükleniyor...</Text>
+          </View>
+        ) : (
+          <WebView
+            source={{ html: readmeHtml }}
+            style={{ flex: 1, backgroundColor: 'transparent' }}
+            scrollEnabled
+            showsVerticalScrollIndicator={false}
+            originWhitelist={['*']}
+            onShouldStartLoadWithRequest={(req) => {
+              if (req.url !== 'about:blank' && req.url.startsWith('http')) {
+                Linking.openURL(req.url);
+                return false;
+              }
+              return true;
+            }}
+          />
+        )}
 
         {/* Code Snippet */}
         {!!project.codeSnippet && (

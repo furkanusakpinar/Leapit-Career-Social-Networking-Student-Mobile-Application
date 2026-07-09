@@ -1,6 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import * as ImagePicker from 'expo-image-picker';
 import { addDoc, collection, deleteDoc, doc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import {
@@ -10,7 +9,6 @@ import {
     KeyboardAvoidingView,
     Platform,
     Pressable,
-    ScrollView,
     StyleSheet,
     Text,
     TextInput,
@@ -22,9 +20,7 @@ import Toast, { BaseToast, ErrorToast } from 'react-native-toast-message';
 import { useSelector } from 'react-redux';
 import { db } from '../../firebaseConfig';
 import { lightTheme, darkTheme } from '../theme/colors';
-import { uploadToCloudinary } from '../utils/cloudinary';
-
-const MAX_PHOTOS = 5;
+import { fetchRepoTitle } from '../utils/github';
 
 const getToastConfig = (colors) => ({
     success: (props) => (
@@ -48,6 +44,7 @@ const getToastConfig = (colors) => ({
 export function ProjectPage() {
     const userId = useSelector((state) => state.user.userId);
     const themeMode = useSelector(state => state.theme?.mode || 'light');
+    const isDark = themeMode === 'dark';
     const colors = themeMode === 'light' ? lightTheme : darkTheme;
     const styles = getStyles(colors);
     const toastConfig = getToastConfig(colors);
@@ -58,11 +55,7 @@ export function ProjectPage() {
 
     const [projectTitle, setProjectTitle] = useState('');
     const [githubUrl, setGithubUrl] = useState('');
-    const [readmeContent, setReadmeContent] = useState('');
-    const [codeSnippet, setCodeSnippet] = useState('');
-
-    // Fotoğraflar
-    const [photos, setPhotos] = useState([]); // [{ uri, name }]
+    const [fetchingTitle, setFetchingTitle] = useState(false);
 
     const navigation = useNavigation();
     const route = useRoute();
@@ -89,90 +82,45 @@ export function ProjectPage() {
         return () => unsub();
     }, [prePostId]);
 
-    // ── Fotoğraf Seç ────────────────────────────────────────────────────────
-    const handlePickPhotos = async () => {
+    const handleFetchTitle = async () => {
+        if (!githubUrl) {
+            Toast.show({ type: 'error', text1: 'Uyarı', text2: 'Lütfen önce GitHub bağlantısını girin.' });
+            return;
+        }
+        setFetchingTitle(true);
         try {
-            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-            if (status !== 'granted') {
-                Alert.alert('İzin Gerekli', 'Fotoğraf seçmek için galeri izni vermeniz gerekiyor.');
-                return;
+            const title = await fetchRepoTitle(githubUrl);
+            if (title) {
+                setProjectTitle(title);
+                Toast.show({ type: 'success', text1: 'Başarılı', text2: 'Proje başlığı GitHub\'dan çekildi.' });
+            } else {
+                Toast.show({ type: 'error', text1: 'Hata', text2: 'GitHub\'dan başlık alınamadı.' });
             }
-
-            const remaining = MAX_PHOTOS - photos.length;
-            if (remaining <= 0) {
-                Toast.show({ type: 'error', text1: 'Uyarı', text2: `En fazla ${MAX_PHOTOS} fotoğraf ekleyebilirsiniz.` });
-                return;
-            }
-
-            const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                allowsMultipleSelection: true,
-                selectionLimit: remaining,
-                quality: 0.85,
-                allowsEditing: false,
-            });
-
-            if (!result.canceled && result.assets?.length > 0) {
-                const newPhotos = result.assets.map((asset, i) => ({
-                    uri: asset.uri,
-                    name: `project_${userId}_${Date.now()}_${i}.jpg`,
-                }));
-                setPhotos(prev => [...prev, ...newPhotos].slice(0, MAX_PHOTOS));
-            }
-        } catch (err) {
-            Alert.alert('Hata', 'Fotoğraf seçilirken sorun oluştu: ' + err.message);
+        } catch (_e) {
+            Toast.show({ type: 'error', text1: 'Hata', text2: 'Bağlantı hatasi oluştu.' });
+        } finally {
+            setFetchingTitle(false);
         }
-    };
-
-    const handleRemovePhoto = (index) => {
-        setPhotos(prev => prev.filter((_, i) => i !== index));
-    };
-
-    // ── Fotoğraf Upload ─────────────────────────────────────────────────────
-    const uploadPhotos = async () => {
-        const urls = [];
-        for (let i = 0; i < photos.length; i++) {
-            setUploadProgress(`Fotoğraf yükleniyor ${i + 1}/${photos.length}...`);
-            const photo = photos[i];
-            try {
-                const url = await uploadToCloudinary(photo.uri, 'image');
-                if (url) {
-                    urls.push(url);
-                } else {
-                    throw new Error(`Fotoğraf ${i + 1} yüklenemedi: URL boş döndü`);
-                }
-            } catch (err) {
-                throw new Error(`Fotoğraf ${i + 1} yüklenemedi: ${err.message}`);
-            }
-        }
-        setUploadProgress('');
-        return urls;
     };
 
     // ── Gönder ──────────────────────────────────────────────────────────────
     const handleGonder = async () => {
-        if (!projectTitle.trim() && !readmeContent.trim()) {
-            Toast.show({ type: 'error', text1: 'Uyarı', text2: 'Lütfen başlık ve açıklama giriniz.' });
+        if (!projectTitle.trim()) {
+            Toast.show({ type: 'error', text1: 'Uyarı', text2: 'Lütfen bir proje başlığı giriniz.' });
             return;
         }
         setUploading(true);
 
         try {
-            // Önce fotoğrafları yükle
-            let photoUrls = [];
-            if (photos.length > 0) {
-                photoUrls = await uploadPhotos();
-            }
-
             const userProjectsRef = collection(db, 'Users', userId, 'projects');
             await addDoc(userProjectsRef, {
                 userId,
                 userName: userData?.fullName || 'İsimsiz',
                 title: projectTitle.trim(),
                 githubUrl: githubUrl.trim(),
-                readme: readmeContent.trim(),
-                codeSnippet: codeSnippet.trim(),
-                photos: photoUrls,
+                readme: '',
+                codeSnippet: '',
+                photos: [],
                 shareSetting: postVisibility,
                 createdAt: serverTimestamp(),
             });
@@ -201,11 +149,7 @@ export function ProjectPage() {
                 style={{ flex: 1 }}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             >
-                <ScrollView
-                    contentContainerStyle={styles.content}
-                    keyboardShouldPersistTaps="handled"
-                    scrollEventThrottle={16}
-                >
+                <View style={styles.content}>
                     {/* Header */}
                     <View style={styles.header}>
                         <Pressable onPress={() => navigation.goBack()} hitSlop={15}>
@@ -252,7 +196,26 @@ export function ProjectPage() {
 
                     {/* Proje Başlığı */}
                     <View style={styles.inputContainer}>
-                        <Text style={styles.inputLabel}>Proje Başlığı</Text>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                            <Text style={styles.inputLabel}>Proje Başlığı</Text>
+                            {!!githubUrl && (
+                                <TouchableOpacity
+                                    onPress={handleFetchTitle}
+                                    disabled={fetchingTitle}
+                                    activeOpacity={0.7}
+                                    style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.primary, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}
+                                >
+                                    {fetchingTitle ? (
+                                        <ActivityIndicator size="small" color="#fff" style={{ marginRight: 4 }} />
+                                    ) : (
+                                        <Ionicons name="logo-github" size={14} color="#fff" style={{ marginRight: 4 }} />
+                                    )}
+                                    <Text style={{ color: '#fff', fontSize: 11, fontWeight: 'bold' }}>
+                                        {fetchingTitle ? 'Çekiliyor...' : "GitHub'dan Çek"}
+                                    </Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
                         <TextInput
                             placeholder="Örn: Leapit Mobile App"
                             placeholderTextColor={colors.textSub}
@@ -279,74 +242,16 @@ export function ProjectPage() {
                         </View>
                     </View>
 
-                    {/* Fotoğraflar */}
-                    <View style={styles.inputContainer}>
-                        <View style={styles.photoHeader}>
-                            <Text style={styles.inputLabel}>Uygulama Fotoğrafları</Text>
-                            <Text style={styles.photoCount}>{photos.length}/{MAX_PHOTOS}</Text>
-                        </View>
-
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.photoScroll}>
-                            {/* Ekle Butonu */}
-                            {photos.length < MAX_PHOTOS && (
-                                <TouchableOpacity
-                                    style={[styles.photoAddBtn, { borderColor: colors.border, backgroundColor: colors.background }]}
-                                    onPress={handlePickPhotos}
-                                    activeOpacity={0.7}
-                                >
-                                    <Ionicons name="images-outline" size={28} color={colors.textSub} />
-                                    <Text style={[styles.photoAddText, { color: colors.textSub }]}>Ekle</Text>
-                                </TouchableOpacity>
-                            )}
-
-                            {/* Seçilen Fotoğraflar */}
-                            {photos.map((photo, index) => (
-                                <View key={index} style={styles.photoThumbWrapper}>
-                                    <Image source={{ uri: photo.uri }} style={styles.photoThumb} />
-                                    <TouchableOpacity
-                                        style={styles.photoRemoveBtn}
-                                        onPress={() => handleRemovePhoto(index)}
-                                    >
-                                        <Ionicons name="close-circle" size={22} color="#E63946" />
-                                    </TouchableOpacity>
-                                </View>
-                            ))}
-                        </ScrollView>
-
-                        {photos.length === 0 && (
-                            <Text style={[styles.photoHint, { color: colors.textSub }]}>
-                                Uygulamanızın ekran görüntülerini ekleyin (en fazla {MAX_PHOTOS} adet)
-                            </Text>
-                        )}
+                    {/* GitHub Bilgilendirme */}
+                    <View style={[styles.infoCard, { backgroundColor: isDark ? 'rgba(0, 102, 255, 0.15)' : 'rgba(0, 102, 255, 0.06)', borderColor: isDark ? 'rgba(0, 102, 255, 0.3)' : 'rgba(0, 102, 255, 0.15)' }]}>
+                        <Ionicons name="information-circle-outline" size={20} color={colors.primary} style={{ marginRight: 10 }} />
+                        <Text style={[styles.infoText, { color: colors.textSub }]}>
+                            Girilen GitHub linki üzerinden projenizin README açıklaması ve görselleri otomatik olarak çekilip profil detayınızda dinamik şekilde gösterilecektir.
+                        </Text>
                     </View>
 
-                    {/* Readme */}
-                    <View style={styles.inputContainer}>
-                        <Text style={styles.inputLabel}>Readme / Açıklama</Text>
-                        <TextInput
-                            placeholder="Projenizi detaylıca anlatın... (Markdown veya HTML desteklenir)"
-                            placeholderTextColor={colors.textSub}
-                            value={readmeContent}
-                            onChangeText={setReadmeContent}
-                            style={[styles.textInput, styles.textArea]}
-                            multiline
-                        />
-                    </View>
 
-                    {/* Kod Parçası */}
-                    <View style={styles.inputContainer}>
-                        <Text style={styles.inputLabel}>Kod Parçası (Opsiyonel)</Text>
-                        <TextInput
-                            placeholder="Önemli bir kod bloğu ekleyin..."
-                            placeholderTextColor={colors.textSub}
-                            value={codeSnippet}
-                            onChangeText={setCodeSnippet}
-                            style={[styles.textInput, styles.codeArea]}
-                            multiline
-                        />
-                    </View>
-
-                </ScrollView>
+                </View>
             </KeyboardAvoidingView>
 
         </SafeAreaView>
@@ -355,7 +260,7 @@ export function ProjectPage() {
 
 const getStyles = (colors) => StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-    content: { flexGrow: 1, paddingHorizontal: '5%', paddingBottom: 40 },
+    content: { flex: 1, paddingHorizontal: '5%', paddingBottom: 40 },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12 },
     iconBack: { width: 24, height: 24, resizeMode: 'contain' },
     headerTitle: { color: colors.textMain, fontSize: 18, fontWeight: 'bold', textAlign: 'center' },
@@ -377,6 +282,20 @@ const getStyles = (colors) => StyleSheet.create({
         marginBottom: 15,
         borderWidth: 1,
         borderColor: colors.border,
+    },
+    infoCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderRadius: 16,
+        padding: 12,
+        borderWidth: 1,
+        marginBottom: 15,
+    },
+    infoText: {
+        flex: 1,
+        fontSize: 12,
+        lineHeight: 18,
+        fontWeight: '500',
     },
     inputLabel: {
         color: colors.textSub,

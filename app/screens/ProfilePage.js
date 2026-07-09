@@ -1,19 +1,25 @@
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { collection, deleteDoc, doc, getDoc, getDocs, query, where, arrayUnion, arrayRemove, updateDoc } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, getDocs, query, where, arrayUnion, arrayRemove, updateDoc, setDoc } from 'firebase/firestore';
 import moment from 'moment';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import {
   ActivityIndicator,
   Alert,
+  Animated as RNAnimated,
   Dimensions,
   Image,
+  KeyboardAvoidingView,
   Linking,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -30,12 +36,16 @@ import { db } from '../../firebaseConfig';
 import { getCompanyLogoUri } from '../utils/getCompanyLogoUri';
 import { getSchoolLogoUri } from '../utils/getSchoolLogoUri';
 import { useSelector } from 'react-redux';
+import Toast from 'react-native-toast-message';
 import { lightTheme, darkTheme } from '../theme/colors';
 import { BlurView } from 'expo-blur';
 import VideoPlayer from '../components/VideoPlayer';
 import CommentModal from '../components/CommentModal';
 import PostOptionsMenu from '../components/PostOptionsMenu';
-import { deleteFromCloudinary } from '../utils/cloudinary';
+import { deleteFromCloudinary, uploadToCloudinary } from '../utils/cloudinary';
+import { fetchReadmeFromGithub } from '../utils/github';
+import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SHEET_HEIGHT = SCREEN_HEIGHT * 0.88;
@@ -52,14 +62,22 @@ const formatTimeAgo = (timestamp) => {
   return 'Yakın zamanda';
 };
 
-const buildReadmeHtml = (content, isDark) => {
-  const bg      = isDark ? '#101216' : '#ffffff';
+const formatCount = (num) => {
+  if (!num) return '0';
+  if (num >= 1000000000) return (num / 1000000000).toFixed(1).replace(/\.0$/, '') + ' Mr';
+  if (num >= 1000000) return (num / 1000000).toFixed(1).replace(/\.0$/, '') + ' M';
+  if (num >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + ' B';
+  return String(num);
+};
+
+const buildReadmeHtml = (content, isDark, colors) => {
+  const bg      = colors?.cardBackground || (isDark ? '#1A1D24' : '#ffffff');
   const text    = isDark ? '#e6edf3' : '#1f2328';
   const codeBg  = isDark ? '#161b22' : '#f6f8fa';
   const border  = isDark ? '#30363d' : '#d1d9e0';
   const hBorder = isDark ? '#21262d' : '#d1d9e0';
   const blockBg = isDark ? '#161b22' : '#f6f8fa';
-  const link    = '#0969da';
+  const link    = colors?.primary || '#0066FF';
   const subText = isDark ? '#848d97' : '#636c76';
 
   const raw = content || '';
@@ -151,6 +169,8 @@ function ProjectSheet({ project, visible, onClose, colors, isDark }) {
   const opacity = useSharedValue(0);
   const insets = useSafeAreaInsets();
   const [show, setShow] = useState(false);
+  const [readmeContent, setReadmeContent] = useState((project?.readme || project?.content) || '');
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (visible) {
@@ -165,6 +185,24 @@ function ProjectSheet({ project, visible, onClose, colors, isDark }) {
     }
   }, [visible]);
 
+  useEffect(() => {
+    if (visible && project) {
+      setReadmeContent(project.readme || project.content || '');
+      
+      if (project.githubUrl) {
+        setLoading(true);
+        fetchReadmeFromGithub(project.githubUrl)
+          .then((fetched) => {
+            if (fetched) {
+              setReadmeContent(fetched);
+            }
+          })
+          .catch((err) => console.log('Dynamic github fetch error:', err))
+          .finally(() => setLoading(false));
+      }
+    }
+  }, [visible, project]);
+
   const sheetStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
   }));
@@ -174,7 +212,7 @@ function ProjectSheet({ project, visible, onClose, colors, isDark }) {
 
   if (!show || !project) return null;
 
-  const readmeHtml = buildReadmeHtml(project.readme || project.content || 'İçerik bulunamadı.', isDark);
+  const readmeHtml = buildReadmeHtml(readmeContent || 'İçerik bulunamadı.', isDark, colors);
 
   return (
     <Modal transparent animationType="none" statusBarTranslucent>
@@ -216,56 +254,35 @@ function ProjectSheet({ project, visible, onClose, colors, isDark }) {
             onPress={() => Linking.openURL(project.githubUrl)}
             activeOpacity={0.7}
           >
-            <Text style={{ fontSize: 16, marginRight: 8 }}>🔗</Text>
+            <Text style={{ fontSize: 16, marginRight: 8, color: colors.textMain }}>GitHub Link:</Text>
             <Text style={[sheetStyles.githubText, { color: colors.primary }]} numberOfLines={1}>
               {project.githubUrl}
             </Text>
           </TouchableOpacity>
         )}
 
-        {/* Proje Fotoğrafları */}
-        {project.photos?.length > 0 && (
-          <View style={{ marginHorizontal: 16, marginTop: 10 }}>
-            <Text style={[sheetStyles.codeLabel, { color: colors.textSub, marginBottom: 8 }]}>UYGULAMA EKRAN GÖRÜNTÜLERİ</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {project.photos.map((url, i) => (
-                <TouchableOpacity
-                  key={i}
-                  activeOpacity={0.85}
-                  onPress={() => Linking.openURL(url)}
-                >
-                  <Image
-                    source={{ uri: url }}
-                    style={{
-                      width: 120,
-                      height: 200,
-                      borderRadius: 12,
-                      marginRight: 10,
-                      backgroundColor: colors.border,
-                      resizeMode: 'cover',
-                    }}
-                  />
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+        {/* README WebView / Loader */}
+        {loading && !readmeContent ? (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={{ color: colors.textSub, marginTop: 10, fontSize: 13 }}>{"GitHub'dan README yükleniyor..."}</Text>
           </View>
+        ) : (
+          <WebView
+            source={{ html: readmeHtml }}
+            style={{ flex: 1, backgroundColor: 'transparent' }}
+            scrollEnabled
+            showsVerticalScrollIndicator={false}
+            originWhitelist={['*']}
+            onShouldStartLoadWithRequest={(req) => {
+              if (req.url !== 'about:blank' && req.url.startsWith('http')) {
+                Linking.openURL(req.url);
+                return false;
+              }
+              return true;
+            }}
+          />
         )}
-
-        {/* README WebView */}
-        <WebView
-          source={{ html: readmeHtml }}
-          style={{ flex: 1, backgroundColor: 'transparent' }}
-          scrollEnabled
-          showsVerticalScrollIndicator={false}
-          originWhitelist={['*']}
-          onShouldStartLoadWithRequest={(req) => {
-            if (req.url !== 'about:blank' && req.url.startsWith('http')) {
-              Linking.openURL(req.url);
-              return false;
-            }
-            return true;
-          }}
-        />
 
         {/* Code Snippet */}
         {!!project.codeSnippet && (
@@ -282,6 +299,505 @@ function ProjectSheet({ project, visible, onClose, colors, isDark }) {
     </Modal>
   );
 }
+
+// ─── Profile Edit Bottom Sheet ────────────────────────────────────────────────
+function ProfileEditSheet({ visible, onClose, colors, isDark, userData, userId, onSaveSuccess }) {
+  const translateY = useSharedValue(SHEET_HEIGHT);
+  const opacity = useSharedValue(0);
+  const insets = useSafeAreaInsets();
+  const [show, setShow] = useState(false);
+
+  const [bio, setBio] = useState('');
+  const [userLocation, setUserLocation] = useState('');
+  const [cvUrl, setCvUrl] = useState('');
+  const [githubLink, setGithubLink] = useState('');
+  const [instagramLink, setInstagramLink] = useState('');
+  const [profileImageUri, setProfileImageUri] = useState(null);
+  const [backProfileImageUri, setBackProfileImageUri] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      setShow(true);
+      opacity.value = withTiming(1, { duration: 220 });
+      translateY.value = withTiming(0, { duration: 320 });
+    } else {
+      opacity.value = withTiming(0, { duration: 200 });
+      translateY.value = withTiming(SHEET_HEIGHT, { duration: 280 }, () => {
+        runOnJS(setShow)(false);
+      });
+    }
+  }, [visible]);
+
+  useEffect(() => {
+    if (visible && userData) {
+      setBio(userData.bio || '');
+      setUserLocation(userData.userLocation || '');
+      setCvUrl(userData.cvUrl || '');
+      setGithubLink(userData.githubLink || '');
+      setInstagramLink(userData.instagramLink || '');
+      setProfileImageUri(userData.profileImageUrl || null);
+      setBackProfileImageUri(userData.backProfileImageUrl || null);
+    }
+  }, [visible, userData]);
+
+  const handleChoosePhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Galeri İzni', 'Galeriye erişim izni verilmedi.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+
+    if (!result.canceled) {
+      setProfileImageUri(result.assets[0].uri);
+    }
+  };
+
+  const handleChooseBackPhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Galeri İzni', 'Galeriye erişim izni verilmedi.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [16, 6],
+      quality: 0.7,
+    });
+
+    if (!result.canceled) {
+      setBackProfileImageUri(result.assets[0].uri);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!bio.trim()) {
+      Alert.alert('Hata', 'Lütfen "Hakkımda" bölümünü doldurun.');
+      return;
+    }
+    if (!userLocation.trim()) {
+      Alert.alert('Hata', 'Lütfen konum bilginizi doldurun.');
+      return;
+    }
+
+    setIsLoading(true);
+    let imageUrlForFirebase = profileImageUri;
+    let backImageUrlForFirebase = backProfileImageUri;
+
+    try {
+      const hasNewProfileImage = profileImageUri && !profileImageUri.startsWith('http');
+      const hasNewBackProfileImage = backProfileImageUri && !backProfileImageUri.startsWith('http');
+
+      if (hasNewProfileImage) {
+        imageUrlForFirebase = await uploadToCloudinary(profileImageUri, 'image');
+      }
+
+      if (hasNewBackProfileImage) {
+        backImageUrlForFirebase = await uploadToCloudinary(backProfileImageUri, 'image');
+      }
+
+      const updateData = {
+        bio: bio.trim(),
+        userLocation: userLocation.trim(),
+        cvUrl: cvUrl.trim(),
+        githubLink: githubLink.trim(),
+        instagramLink: instagramLink.trim(),
+        profileImageUrl: imageUrlForFirebase,
+        backProfileImageUrl: backImageUrlForFirebase,
+      };
+
+      await updateDoc(doc(db, 'Users', userId), updateData);
+      Toast.show({ type: 'success', text1: 'Başarılı', text2: 'Profiliniz başarıyla güncellendi!' });
+      onSaveSuccess();
+      onClose();
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Hata', 'Profil kaydedilirken bir sorun oluştu.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const sheetStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
+  const backdropStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+  }));
+
+  if (!show) return null;
+
+  const canSaveProfile = bio.trim() !== '' && userLocation.trim() !== '' && !isLoading;
+
+  return (
+    <Modal transparent animationType="none" statusBarTranslucent>
+      {/* Backdrop */}
+      <Animated.View style={[sheetStyles.backdrop, backdropStyle]}>
+        <Pressable style={{ flex: 1 }} onPress={onClose} />
+      </Animated.View>
+
+      {/* Sheet */}
+      <Animated.View
+        style={[
+          sheetStyles.sheet,
+          sheetStyle,
+          { backgroundColor: colors.cardBackground, paddingBottom: insets.bottom + 10 },
+        ]}
+      >
+        <View style={sheetStyles.handle} />
+        <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 15, paddingBottom: 40 }}>
+            {/* Banner + Avatar Overlay (ProfilePage tarzı) */}
+            <View style={{ width: '100%', marginBottom: 48, marginTop: 5 }}>
+              {/* Banner */}
+              <Pressable
+                onPress={handleChooseBackPhoto}
+                style={{ width: '100%', height: 110, borderRadius: 14, overflow: 'hidden', backgroundColor: colors.border }}
+              >
+                {backProfileImageUri ? (
+                  <Image source={{ uri: backProfileImageUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                ) : (
+                  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                    <Ionicons name="image-outline" size={26} color={colors.textSub} />
+                  </View>
+                )}
+                {/* Banner kamera ikonu */}
+                <View style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.5)', padding: 5, borderRadius: 15 }}>
+                  <Ionicons name="camera" size={14} color="white" />
+                </View>
+              </Pressable>
+
+              {/* Avatar — bannerın altına bindirme */}
+              <View style={{ position: 'absolute', bottom: -44, left: 16 }}>
+                <Pressable onPress={handleChoosePhoto} style={{ position: 'relative' }}>
+                  {profileImageUri ? (
+                    <Image
+                      source={{ uri: profileImageUri }}
+                      style={{ width: 80, height: 80, borderRadius: 13, borderWidth: 3, borderColor: colors.cardBackground }}
+                    />
+                  ) : (
+                    <View style={{ width: 80, height: 80, borderRadius: 13, borderWidth: 3, borderColor: colors.cardBackground, backgroundColor: colors.border, justifyContent: 'center', alignItems: 'center' }}>
+                      <MaterialCommunityIcons name="account" size={48} color={colors.textSub} />
+                    </View>
+                  )}
+                  {/* Avatar kamera badge */}
+                  <View style={{ position: 'absolute', bottom: 2, right: 2, backgroundColor: colors.primary, width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: colors.cardBackground }}>
+                    <Ionicons name="camera" size={11} color="white" />
+                  </View>
+                </Pressable>
+              </View>
+            </View>
+
+            {/* Hakkımda */}
+            <Text style={{ color: colors.textSub, fontSize: 12, fontWeight: '600', marginBottom: 4 }}>Hakkımda</Text>
+            <TextInput
+              placeholder="Kendinizden bahsedin..."
+              placeholderTextColor={colors.textSub}
+              style={{
+                backgroundColor: isDark ? '#101216' : '#F0F0F0',
+                borderRadius: 10,
+                padding: 10,
+                color: colors.textMain,
+                fontSize: 14,
+                height: 80,
+                textAlignVertical: 'top',
+              }}
+              multiline
+              value={bio}
+              onChangeText={setBio}
+              maxLength={500}
+            />
+            <Text style={{ color: colors.textSub, fontSize: 10, textAlign: 'right', marginTop: 2, marginBottom: 10 }}>{bio.length}/500</Text>
+
+            {/* Konum */}
+            <Text style={{ color: colors.textSub, fontSize: 12, fontWeight: '600', marginBottom: 4 }}>Konum *</Text>
+            <TextInput
+              placeholder="Şehir, Ülke"
+              placeholderTextColor={colors.textSub}
+              style={{
+                backgroundColor: isDark ? '#101216' : '#F0F0F0',
+                borderRadius: 10,
+                padding: 10,
+                color: colors.textMain,
+                fontSize: 14,
+                height: 44,
+              }}
+              value={userLocation}
+              onChangeText={setUserLocation}
+              maxLength={100}
+            />
+            <Text style={{ color: colors.textSub, fontSize: 10, textAlign: 'right', marginTop: 2, marginBottom: 10 }}>{userLocation.length}/100</Text>
+
+            {/* CV Bağlantısı */}
+            <Text style={{ color: colors.textSub, fontSize: 12, fontWeight: '600', marginBottom: 4 }}>CV Bağlantısı (URL)</Text>
+            <TextInput
+              placeholder="CV / Portfolyo linkinizi girin..."
+              placeholderTextColor={colors.textSub}
+              style={{
+                backgroundColor: isDark ? '#101216' : '#F0F0F0',
+                borderRadius: 10,
+                padding: 10,
+                color: colors.textMain,
+                fontSize: 14,
+                height: 44,
+              }}
+              value={cvUrl}
+              onChangeText={setCvUrl}
+              maxLength={200}
+            />
+            <Text style={{ color: colors.textSub, fontSize: 10, textAlign: 'right', marginTop: 2, marginBottom: 15 }}>{cvUrl.length}/200</Text>
+
+            {/* GitHub Linki */}
+            <Text style={{ color: colors.textSub, fontSize: 12, fontWeight: '600', marginBottom: 4 }}>GitHub Linki (İsteğe Bağlı)</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? '#101216' : '#F0F0F0', borderRadius: 10, paddingHorizontal: 10, marginBottom: 12, height: 44 }}>
+              <Ionicons name="logo-github" size={18} color={colors.textSub} style={{ marginRight: 8 }} />
+              <TextInput
+                placeholder="https://github.com/kullanici"
+                placeholderTextColor={colors.textSub}
+                style={{ flex: 1, color: colors.textMain, fontSize: 14 }}
+                value={githubLink}
+                onChangeText={setGithubLink}
+                autoCapitalize="none"
+                keyboardType="url"
+                maxLength={200}
+              />
+            </View>
+
+            {/* Instagram Linki */}
+            <Text style={{ color: colors.textSub, fontSize: 12, fontWeight: '600', marginBottom: 4 }}>Instagram Linki (İsteğe Bağlı)</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? '#101216' : '#F0F0F0', borderRadius: 10, paddingHorizontal: 10, marginBottom: 15, height: 44 }}>
+              <Ionicons name="logo-instagram" size={18} color={colors.textSub} style={{ marginRight: 8 }} />
+              <TextInput
+                placeholder="https://instagram.com/kullanici"
+                placeholderTextColor={colors.textSub}
+                style={{ flex: 1, color: colors.textMain, fontSize: 14 }}
+                value={instagramLink}
+                onChangeText={setInstagramLink}
+                autoCapitalize="none"
+                keyboardType="url"
+                maxLength={200}
+              />
+            </View>
+
+            {/* Kaydet Butonu */}
+            <TouchableOpacity
+              style={{
+                backgroundColor: colors.primary,
+                padding: 14,
+                borderRadius: 10,
+                alignItems: 'center',
+                opacity: canSaveProfile ? 1 : 0.5,
+              }}
+              onPress={handleSave}
+              disabled={!canSaveProfile}
+            >
+              {isLoading ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 15 }}>Kaydet</Text>
+              )}
+            </TouchableOpacity>
+        </View>
+      </Animated.View>
+    </Modal>
+  );
+}
+
+// ─── PostCard — birebir HomePage kart yapısı ──────────────────────────────────
+const truncateString = (str, maxLength) => {
+  if (!str) return '';
+  return str.length <= maxLength ? str : str.substring(0, maxLength - 3) + '...';
+};
+
+const PostCardActionButton = ({ iconComponent, onPress, isActive, activeColor, inactiveColor, label, textSub, s }) => {
+  const scaleAnim = useRef(new RNAnimated.Value(1)).current;
+  const handlePress = () => {
+    RNAnimated.sequence([
+      RNAnimated.timing(scaleAnim, { toValue: 0.8, duration: 100, useNativeDriver: true }),
+      RNAnimated.spring(scaleAnim, { toValue: 1, friction: 3, useNativeDriver: true }),
+    ]).start();
+    onPress();
+  };
+  return (
+    <Pressable style={s.actionButton} onPress={handlePress}>
+      <RNAnimated.View style={[s.actionIconContainer, { transform: [{ scale: scaleAnim }] }]}>
+        {iconComponent({ color: isActive ? activeColor : inactiveColor, size: 20 })}
+      </RNAnimated.View>
+      {label && <Text style={[s.actionLabel, { color: textSub }, isActive && { color: activeColor }]}>{label}</Text>}
+    </Pressable>
+  );
+};
+
+const PostCardActions = ({ item, colors, s, onPostAction, onCommentPress }) => {
+  return (
+    <View>
+      {(item.likesCount > 0 || item.commentsCount > 0 || item.repeatsCount > 0) && (
+        <View style={s.statsRow}>
+          <View style={s.statsLeft}>
+            {item.likesCount > 0 && (
+              <>
+                <Image source={require('../../assets/images/circleLike.png')} style={s.reactionIcon} />
+                <Text style={s.statText}>{formatCount(item.likesCount)} Beğeni</Text>
+              </>
+            )}
+          </View>
+          <Text style={s.statText}>
+            {item.commentsCount > 0 ? `${formatCount(item.commentsCount)} comments` : ''}
+            {item.commentsCount > 0 && item.repeatsCount > 0 ? ' • ' : ''}
+            {item.repeatsCount > 0 ? `${formatCount(item.repeatsCount)} reposts` : ''}
+          </Text>
+        </View>
+      )}
+      <View style={s.divider} />
+      <View style={s.cardActions}>
+        <PostCardActionButton
+          iconComponent={(props) => <MaterialCommunityIcons name={item.liked ? 'heart' : 'heart-outline'} {...props} />}
+          isActive={item.liked} activeColor="#FF4B4B" inactiveColor={colors.iconTint}
+          textSub={colors.textSub} label="Like" s={s}
+          onPress={() => onPostAction(item.id, 'likedBy', item.liked)}
+        />
+        <PostCardActionButton
+          iconComponent={(props) => <MaterialCommunityIcons name="comment-outline" {...props} />}
+          label="Comment" inactiveColor={colors.iconTint}
+          textSub={colors.textSub} s={s}
+          onPress={() => onCommentPress(item.id)}
+        />
+        <PostCardActionButton
+          iconComponent={(props) => <MaterialCommunityIcons name={item.repeated ? 'repeat' : 'repeat-variant'} {...props} />}
+          isActive={item.repeated} activeColor="#00BA7C" inactiveColor={colors.iconTint}
+          textSub={colors.textSub} label="Repost" s={s}
+          onPress={() => onPostAction(item.id, 'repeatedBy', item.repeated)}
+        />
+        <PostCardActionButton
+          iconComponent={(props) => <MaterialIcons name="share" {...props} />}
+          label="Send" inactiveColor={colors.iconTint}
+          textSub={colors.textSub} s={s}
+          onPress={() => {}}
+        />
+      </View>
+    </View>
+  );
+};
+
+function SavedPostCard({ item, isExpanded, hasMedia, displayContent, colors, onToggleExpand, onPostAction, onCommentPress, onOptionsPress, navigation }) {
+  const s = getPostCardStyles(colors);
+  return (
+    <View style={s.card}>
+      {/* Header — birebir HomePage */}
+      <View style={s.cardHeader}>
+        <Pressable onPress={() => navigation?.navigate('OtherProfilePage', { userId: item.userId })}>
+          <Image
+            source={
+              item.profileImageUrl && typeof item.profileImageUrl === 'string' && item.profileImageUrl.length > 0
+                ? { uri: item.profileImageUrl }
+                : require('../../assets/images/ProfileSquare.png')
+            }
+            style={s.cardProfil}
+          />
+        </Pressable>
+        <View style={s.headerTextContainer}>
+          <Text style={s.cardName}>{item.userName}</Text>
+          {item.details?.length > 0 && <Text style={s.followerCountText}>{truncateString(item.details, 50)}</Text>}
+          <Text style={s.cardTime}>{moment(item.createdAt?.seconds * 1000).fromNow()} • 🌎</Text>
+        </View>
+        <Pressable style={s.optionsContainer} onPress={(e) => onOptionsPress?.(item, e.nativeEvent.pageY)}>
+          <Text style={s.optionsText}>···</Text>
+        </Pressable>
+      </View>
+
+      {/* Content */}
+      <View style={s.contentSection}>
+        <Text style={s.cardDescInline}>
+          {displayContent}
+          {item.content?.length > 100 && (
+            <Text onPress={() => onToggleExpand(item.id)} style={s.moreText}>
+              {isExpanded ? ' Daha Az' : ' ...daha fazla'}
+            </Text>
+          )}
+        </Text>
+      </View>
+
+      {/* Media */}
+      {hasMedia && (
+        <View style={s.mediaWrapper}>
+          {item.mediaType === 'image' ? (
+            <Image source={{ uri: item.mediaUri }} style={s.mediaContent} resizeMode="cover" />
+          ) : (
+            <VideoPlayer videoUri={item.mediaUri} style={s.mediaContent} />
+          )}
+        </View>
+      )}
+
+      {/* PostActions — birebir HomePage PostActions */}
+      <PostCardActions
+        item={item}
+        colors={colors}
+        s={s}
+        onPostAction={onPostAction}
+        onCommentPress={onCommentPress}
+      />
+    </View>
+  );
+}
+
+const getPostCardStyles = (colors) => StyleSheet.create({
+  card: {
+    backgroundColor: colors.cardBackground,
+    marginHorizontal: 0,
+    marginBottom: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 15,
+    paddingTop: 15,
+    paddingBottom: 10,
+  },
+  cardProfil: { width: 44, height: 44, marginRight: 12, borderRadius: 22, backgroundColor: colors.border, borderWidth: 1, borderColor: colors.border },
+  headerTextContainer: { flex: 1, justifyContent: 'center' },
+  cardName: { color: colors.textMain, fontSize: 15, fontWeight: '700' },
+  followerCountText: { color: colors.textSub, fontSize: 12, marginTop: 2 },
+  cardTime: { color: colors.textSub, fontSize: 11, marginTop: 2 },
+  optionsContainer: { padding: 5, paddingRight: 0 },
+  optionsText: { color: colors.textSub, fontSize: 20, fontWeight: 'bold', marginTop: -15 },
+  contentSection: { paddingHorizontal: 15, paddingBottom: 12 },
+  cardDescInline: { color: colors.textMain, fontSize: 14, lineHeight: 21 },
+  moreText: { color: colors.textSub, fontSize: 14, fontWeight: '600' },
+  mediaWrapper: { width: '100%', aspectRatio: 1.2, backgroundColor: colors.background },
+  mediaContent: { width: '100%', height: '100%' },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+  },
+  statsLeft: { flexDirection: 'row', alignItems: 'center' },
+  reactionIcon: { width: 16, height: 16, marginRight: 6, resizeMode: 'contain' },
+  statText: { color: colors.textSub, fontSize: 12 },
+  divider: { height: 1, backgroundColor: colors.border, marginHorizontal: 15 },
+  cardActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  actionButton: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 10 },
+  actionIconContainer: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  actionLabel: { color: colors.textSub, fontSize: 13, marginLeft: 6, fontWeight: '600' },
+});
 
 // ─── Main ProfilePage ──────────────────────────────────────────────────────────
 export default function ProfilePage() {
@@ -302,6 +818,9 @@ export default function ProfilePage() {
   const [expandedPosts, setExpandedPosts] = useState({});
   const [optionsItem, setOptionsItem] = useState(null);
   const [menuAnchorY, setMenuAnchorY] = useState(0);
+  const [savedCategory, setSavedCategory] = useState(null); // 'Postlar', 'İş İlanları', 'Projeler'
+  const [editSheetVisible, setEditSheetVisible] = useState(false);
+  const [contactMenuVisible, setContactMenuVisible] = useState(false);
   const scrollY = useSharedValue(0);
 
   const updateBlur = useCallback((y) => {
@@ -346,15 +865,27 @@ export default function ProfilePage() {
     setOptionsItem(null);
     if (!item) return;
     try {
-      if (item._tab === 'Blog') {
-        await deleteDoc(doc(db, 'Users', userId, 'blog', item.id));
-      } else if (item._tab === 'Projeler') {
-        await deleteDoc(doc(db, 'Users', userId, 'projects', item.id));
-      } else if (item._tab === 'Postlar') {
+      let tab = item._tab;
+      if (tab === 'Kaydedilenler') {
+        if (savedCategory === 'Postlar') tab = 'Postlar';
+        else if (savedCategory === 'Projeler') tab = 'Projeler';
+        else if (savedCategory === 'İş İlanları') tab = 'İş İlanları';
+        else if (savedCategory === 'Blog') tab = 'Blog';
+      }
+      
+      const ownerId = item.userId || userId;
+
+      if (tab === 'Blog') {
+        await deleteDoc(doc(db, 'Users', ownerId, 'blog', item.id));
+      } else if (tab === 'Projeler') {
+        await deleteDoc(doc(db, 'Users', ownerId, 'projects', item.id));
+      } else if (tab === 'Postlar') {
         if (item.mediaUri) {
           await deleteFromCloudinary(item.mediaUri, item.mediaType || 'image');
         }
         await deleteDoc(doc(db, 'Posts', item.id));
+      } else if (tab === 'İş İlanları') {
+        await deleteDoc(doc(db, 'JobsPosts', item.id));
       }
       Alert.alert('Başarılı', 'Başarıyla silindi.');
       fetchTabData();
@@ -396,7 +927,131 @@ export default function ProfilePage() {
         data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       } else if (selectedTab === 'Projeler') {
         const snapshot = await getDocs(collection(db, 'Users', userId, 'projects'));
-        data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        data = await Promise.all(snapshot.docs.map(async d => {
+          const projectData = d.data();
+          let isSaved = false;
+          if (loggedInUserId) {
+            const saveRef = doc(db, 'Users', loggedInUserId, 'saves', 'Projeler', 'items', d.id);
+            const saveSnap = await getDoc(saveRef);
+            isSaved = saveSnap.exists();
+          }
+          return {
+            id: d.id,
+            ...projectData,
+            saved: isSaved
+          };
+        }));
+      } else if (selectedTab === 'Kaydedilenler') {
+        if (!savedCategory) {
+          setTabData([]);
+          return;
+        }
+
+        const path = `Users/${userId}/saves/${savedCategory}/items`;
+        console.log("Sorgulanan Firestore Yolu:", path);
+
+        const savesSnap = await getDocs(collection(db, path));
+        
+        if (savedCategory === 'Projeler') {
+          const projectDocs = await Promise.all(savesSnap.docs.map(async d => {
+            const saveData = d.data();
+            const ownerId = saveData.ownerId || userId;
+            try {
+              const projectSnap = await getDoc(doc(db, 'Users', ownerId, 'projects', d.id));
+              if (projectSnap.exists()) {
+                const projectData = projectSnap.data();
+                let authorName = 'İsimsiz';
+                let authorAvatar = null;
+                let authorDetails = '';
+                
+                try {
+                  const uSnap = await getDoc(doc(db, 'Users', ownerId));
+                  if (uSnap.exists()) {
+                    const uData = uSnap.data();
+                    authorName = uData.fullName || 'İsimsiz';
+                    authorAvatar = uData.profileImageUrl || null;
+                    authorDetails = [uData.company, uData.job].filter(Boolean).join(' | ');
+                  }
+                } catch (e) {
+                  console.error("Author fetch error for saved project:", e);
+                }
+
+                return {
+                  id: projectSnap.id,
+                  ...projectData,
+                  userId: ownerId,
+                  profileImageUrl: authorAvatar,
+                  userName: authorName,
+                  details: authorDetails,
+                  content: projectData.readme || projectData.content || '',
+                  saved: true
+                };
+              }
+            } catch (err) {
+              console.error("Error fetching saved project:", err);
+            }
+            return null;
+          }));
+          data = projectDocs.filter(Boolean);
+          console.log("Çekilen Proje sayısı:", data.length);
+        } else {
+          let collectionPath = "";
+          if (savedCategory === 'Postlar') collectionPath = "Posts";
+          else if (savedCategory === 'İş İlanları') collectionPath = "JobsPosts";
+
+          if (collectionPath) {
+             let ids = savesSnap.docs.map(d => d.id);
+             console.log("Bulunan ID'ler:", ids);
+
+             if (ids.length > 0) {
+                const postsSnap = await getDocs(query(collection(db, collectionPath), where("__name__", "in", ids.slice(0, 30))));
+                data = await Promise.all(postsSnap.docs.map(async d => {
+                  const postData = d.data();
+                  let authorName = 'İsimsiz';
+                  let authorAvatar = null;
+                  let authorDetails = '';
+                  let companyLogo = null;
+                  
+                  if (savedCategory === 'İş İlanları') {
+                    try {
+                      companyLogo = await getCompanyLogoUri(postData.company || '');
+                    } catch (e) {
+                      console.error("Company logo error:", e);
+                    }
+                  }
+                  
+                  if (postData.userId) {
+                    try {
+                      const uSnap = await getDoc(doc(db, 'Users', postData.userId));
+                      if (uSnap.exists()) {
+                        const uData = uSnap.data();
+                        authorName = uData.fullName || 'İsimsiz';
+                        authorAvatar = uData.profileImageUrl || null;
+                        authorDetails = [uData.company, uData.job].filter(Boolean).join(' | ');
+                      }
+                    } catch (e) {
+                      console.error("Author fetch error:", e);
+                    }
+                  }
+                  return {
+                    id: d.id,
+                    ...postData,
+                    profileImageUrl: authorAvatar,
+                    userName: authorName,
+                    details: authorDetails,
+                    companyLogo,
+                    liked: postData.likedBy?.includes(loggedInUserId) || false,
+                    repeated: postData.repeatedBy?.includes(loggedInUserId) || false,
+                    saved: true,
+                    likesCount: postData.likedBy?.length || 0,
+                    repeatsCount: postData.repeatedBy?.length || 0,
+                    commentsCount: postData.comments?.length || 0,
+                  };
+                }));
+                console.log("Çekilen veri sayısı:", data.length);
+             }
+          }
+        }
       } else if (selectedTab === 'Postlar') {
         const snapshot = await getDocs(query(collection(db, 'Posts'), where('userId', '==', userId)));
         data = await Promise.all(snapshot.docs.map(async d => {
@@ -408,6 +1063,7 @@ export default function ProfilePage() {
             userName: userData?.fullName || 'İsimsiz',
             liked: postData.likedBy?.includes(loggedInUserId) || false,
             repeated: postData.repeatedBy?.includes(loggedInUserId) || false,
+            saved: true,
             likesCount: postData.likedBy?.length || 0,
             repeatsCount: postData.repeatedBy?.length || 0,
             commentsCount: postData.comments?.length || 0,
@@ -415,11 +1071,14 @@ export default function ProfilePage() {
         }));
       }
       setTabData(data);
-    } catch (e) { setTabData([]); }
+    } catch (e) {
+      console.error("Tab data error:", e);
+      setTabData([]);
+    }
   };
 
   useEffect(() => { fetchUser(); }, [userId]);
-  useEffect(() => { fetchTabData(); }, [selectedTab, userId]);
+  useEffect(() => { fetchTabData(); }, [selectedTab, userId, savedCategory]);
   useEffect(() => {
     if (userData?.company) getCompanyLogoUri(userData.company).then(setCompanyLogoUri);
     if (userData?.school) getSchoolLogoUri(userData.school).then(setSchoolLogoUri);
@@ -430,15 +1089,62 @@ export default function ProfilePage() {
     Promise.all([fetchUser(), fetchTabData()]).then(() => setRefreshing(false));
   }, [userId, selectedTab]);
 
-  const handlePostAction = async (postId, field, isActive) => {
+  const handlePostAction = async (postId, field, isActive, category = 'Postlar', itemOwnerId = null) => {
     if (!loggedInUserId) return;
-    const postRef = doc(db, 'Posts', postId);
-    try {
-      await updateDoc(postRef, {
-        [field]: isActive ? arrayRemove(loggedInUserId) : arrayUnion(loggedInUserId)
-      });
-      fetchTabData();
-    } catch (error) { console.error(`${field} hatası:`, error); }
+
+    if (field === 'savedBy') {
+      try {
+        const saveRef = doc(db, 'Users', loggedInUserId, 'saves', category, 'items', postId);
+        if (isActive) {
+          await deleteDoc(saveRef);
+        } else {
+          await setDoc(saveRef, {
+            postId: postId,
+            savedAt: new Date()
+          });
+        }
+      } catch (error) {
+        console.error("Save işlemi hatası:", error);
+      }
+    }
+
+    let itemRef = null;
+    const ownerId = itemOwnerId || userId;
+
+    if (category === 'İş İlanları') {
+      itemRef = doc(db, 'JobsPosts', postId);
+    } else if (category === 'Projeler') {
+      if (ownerId) {
+        itemRef = doc(db, 'Users', ownerId, 'projects', postId);
+      }
+    } else {
+      itemRef = doc(db, 'Posts', postId);
+    }
+
+    if (itemRef) {
+      try {
+        await updateDoc(itemRef, {
+          [field]: isActive ? arrayRemove(loggedInUserId) : arrayUnion(loggedInUserId)
+        });
+        fetchTabData();
+      } catch (error) { console.error(`${field} hatası:`, error); }
+    }
+  };
+
+  const handleToggleSave = async (item) => {
+    setOptionsItem(null);
+    if (!item) return;
+
+    let category = 'Postlar';
+    if (selectedTab === 'Kaydedilenler') {
+      category = savedCategory || 'Postlar';
+    } else if (selectedTab === 'Projeler') {
+      category = 'Projeler';
+    } else if (selectedTab === 'Postlar') {
+      category = 'Postlar';
+    }
+
+    await handlePostAction(item.id, 'savedBy', item.saved, category, item.userId || userId);
   };
 
   const toggleExpand = (postId) => {
@@ -469,7 +1175,7 @@ export default function ProfilePage() {
           <Pressable onPress={() => navigation.goBack()} style={styles.headerBtn}>
             <Image source={require('../../assets/images/back.png')} style={styles.iconBack} />
           </Pressable>
-          <Pressable onPress={() => navigation.navigate('ProfileEdit')} style={styles.headerBtn}>
+          <Pressable onPress={() => setEditSheetVisible(true)} style={styles.headerBtn}>
             <Image source={require('../../assets/images/userEdit.png')} style={styles.iconEdit} />
           </Pressable>
         </View>
@@ -511,29 +1217,48 @@ export default function ProfilePage() {
               <Text style={styles.nameText} numberOfLines={1}>{userData.fullName || 'İsimsiz'}</Text>
             </BlurView>
             <Text style={styles.jobText} numberOfLines={1}>{userData.profession || 'Meslek yok'}</Text>
-            <View style={styles.infoRow}>
-              {schoolLogoUri ? (
-                <View style={styles.logoContainer}>
-                  <Image source={{ uri: schoolLogoUri }} style={styles.miniLogo} resizeMode="contain" />
+            {!!userData.userLocation && (
+              <View style={[styles.locationRow, { justifyContent: 'space-between' }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                  <MaterialCommunityIcons name="map-marker-outline" size={13} color={colors.textSub} style={{ marginRight: 3 }} />
+                  <Text style={styles.infoSubText} numberOfLines={1}>{userData.userLocation}</Text>
                 </View>
-              ) : null}
-              <Text style={styles.infoSubText} numberOfLines={1}>{userData.school || 'Okul Belirtilmedi'}</Text>
-            </View>
+                {(!!userData.githubLink || !!userData.instagramLink) && (
+                  <TouchableOpacity
+                    onPress={() => setContactMenuVisible(v => !v)}
+                    style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 8, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialCommunityIcons name="link-variant" size={12} color={colors.textSub} style={{ marginRight: 3 }} />
+                    <Text style={{ color: colors.textSub, fontSize: 10, fontWeight: '600' }}>İletişim
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
           </View>
         </View>
 
         <View style={styles.statsContainer}>
           <View style={styles.statsLeft}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{followersCount}</Text>
+              <Text style={styles.statValue}>{formatCount(followersCount)}</Text>
               <Text style={styles.statLabel}>Takipçi</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{followingCount}</Text>
+              <Text style={styles.statValue}>{formatCount(followingCount)}</Text>
               <Text style={styles.statLabel}>Takip</Text>
             </View>
           </View>
           <View style={styles.companyInfo}>
+            {schoolLogoUri ? (
+              <View style={styles.logoContainer}>
+                <Image source={{ uri: schoolLogoUri }} style={styles.miniLogo} resizeMode="contain" />
+              </View>
+            ) : null}
+            {!!userData.school && (
+              <Text style={[styles.infoSubText, { marginRight: 10 }]} numberOfLines={1}>{userData.school}</Text>
+            )}
             {companyLogoUri ? (
               <View style={styles.logoContainer}>
                 <Image source={{ uri: companyLogoUri }} style={styles.miniLogo} resizeMode="contain" />
@@ -543,6 +1268,55 @@ export default function ProfilePage() {
           </View>
         </View>
 
+        {/* İletişim Bilgileri Popup */}
+        {contactMenuVisible && (!!userData.githubLink || !!userData.instagramLink) && (
+          <Pressable
+            style={{ ...StyleSheet.absoluteFillObject, zIndex: 99 }}
+            onPress={() => setContactMenuVisible(false)}
+          >
+            <View
+              style={{
+                position: 'absolute',
+                top: 135,
+                right: 20,
+                backgroundColor: colors.cardBackground,
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: colors.border,
+                paddingVertical: 6,
+                minWidth: 180,
+                zIndex: 100,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.18,
+                shadowRadius: 8,
+                elevation: 8,
+              }}
+            >
+              {!!userData.githubLink && (
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: userData.instagramLink ? 1 : 0, borderBottomColor: colors.border }}
+                  onPress={() => { setContactMenuVisible(false); Linking.openURL(userData.githubLink); }}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="logo-github" size={20} color={colors.textMain} style={{ marginRight: 12 }} />
+                  <Text style={{ color: colors.textMain, fontSize: 14, fontWeight: '600' }}>GitHub</Text>
+                </TouchableOpacity>
+              )}
+              {!!userData.instagramLink && (
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 }}
+                  onPress={() => { setContactMenuVisible(false); Linking.openURL(userData.instagramLink); }}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="logo-instagram" size={20} color="#E1306C" style={{ marginRight: 12 }} />
+                  <Text style={{ color: colors.textMain, fontSize: 14, fontWeight: '600' }}>Instagram</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </Pressable>
+        )}
+
         <View style={styles.divider} />
 
         <View style={[styles.paddingArea, { paddingTop: 6, paddingBottom: 6 }]}>
@@ -551,137 +1325,172 @@ export default function ProfilePage() {
         </View>
 
         <View style={styles.tabBar}>
-          {['Blog', 'Projeler', 'Postlar'].map(tab => (
+          {['Blog', 'Projeler', 'Postlar', 'Kaydedilenler'].map(tab => (
             <Pressable key={tab} onPress={() => setSelectedTab(tab)} style={[styles.tabItem, selectedTab === tab && styles.activeTab]}>
               <Text style={[styles.tabText, selectedTab === tab && styles.activeTabText]}>{tab}</Text>
             </Pressable>
           ))}
         </View>
 
-        <View style={selectedTab === 'Postlar' ? { paddingTop: 15, paddingBottom: 20 } : styles.paddingArea}>
-          {tabData.length > 0 ? tabData.map(item => {
-            if (selectedTab === 'Postlar') {
-              const isExpanded = expandedPosts[item.id];
-              const hasMedia = !!(item.mediaUri && item.mediaUri.length > 5);
-              const displayContent = (item.content?.length > 100 && !isExpanded)
-                ? item.content.substring(0, 100) + '...'
-                : item.content;
-              return (
-                <View key={item.id} style={[styles.postCard]}>
-                  <View style={styles.postCardHeader}>
-                    <Image
-                      source={
-                        item.profileImageUrl && item.profileImageUrl.length > 0
-                          ? { uri: item.profileImageUrl }
-                          : require('../../assets/images/ProfileSquare.png')
-                      }
-                      style={styles.postCardAvatar}
-                    />
-                    <View style={styles.postCardHeaderText}>
-                      <Text style={styles.postCardName}>{item.userName}</Text>
-                      <Text style={styles.postCardTime}>{moment(item.createdAt?.seconds * 1000).fromNow()} • 🌎</Text>
-                    </View>
-                    {isOwnProfile && (
-                      <TouchableOpacity style={styles.cardOptionsBtn} onPress={(event) => handleOptionsPress(item, event.nativeEvent.pageY)}>
-                        <Text style={styles.cardOptionsText}>···</Text>
+        <View style={(selectedTab === 'Postlar' || selectedTab === 'Kaydedilenler') ? { paddingVertical: 20, paddingHorizontal: 10 } : styles.paddingArea}>
+          {selectedTab === 'Kaydedilenler' ? (
+             savedCategory ? (
+                <View>
+                   <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 12}}>
+                       <TouchableOpacity onPress={() => setSavedCategory(null)} style={{ padding: 4 }}>
+                          <Image source={require('../../assets/images/back.png')} style={{ width: 24, height: 24, resizeMode: 'contain', tintColor: colors.textMain }} />
+                       </TouchableOpacity>
+                      <Text style={{fontSize: 16, color: colors.textMain, fontWeight: 'bold', marginLeft: 5}}>{savedCategory}</Text>
+                   </View>
+                   {tabData.length > 0 ? (
+                      <View>
+                         {tabData.map(item => {
+                           if (savedCategory === 'İş İlanları') {
+                             return (
+                               <View key={item.id} style={styles.jobCard}>
+                                 <View style={styles.jobCardHeader}>
+                                   <Pressable
+                                     onPress={() => navigation.navigate('JobsDetail', { jobsId: item.id })}
+                                     style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
+                                   >
+                                     <Image
+                                       source={
+                                         item.companyLogo && item.companyLogo.length > 0
+                                           ? { uri: item.companyLogo }
+                                           : require('../../assets/images/DefaultCompanyLogo.png')
+                                       }
+                                       style={styles.jobLogo}
+                                     />
+                                     <View style={{ flex: 1 }}>
+                                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                                         <Text style={styles.jobCardTitle} numberOfLines={1}>{item.jobTitle?.length > 30 ? item.jobTitle.slice(0, 30) + '...' : item.jobTitle}</Text>
+                                       </View>
+                                       <Text style={styles.jobCardSub} numberOfLines={1}>
+                                         {item.company} • {item.jobLocation}
+                                       </Text>
+                                     </View>
+                                   </Pressable>
+                                 </View>
+                                 {item.media && typeof item.media === 'string' && item.media.length > 0 ? (
+                                   <Image source={{ uri: item.media }} style={styles.jobCardImage} />
+                                 ) : null}
+                                 {item.content && <Text style={styles.jobCardContent}>{item.content}</Text>}
+                               </View>
+                             );
+                           }
+
+                            if (savedCategory === 'Projeler') {
+                               return (
+                                 <View key={item.id} style={styles.card}>
+                                  <View style={styles.cardHeaderRow}>
+                                    <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
+                                    {isOwnProfile && (
+                                      <TouchableOpacity style={styles.cardOptionsBtn} onPress={(event) => handleOptionsPress(item, event.nativeEvent.pageY)}>
+                                        <Text style={styles.cardOptionsText}>···</Text>
+                                      </TouchableOpacity>
+                                    )}
+                                  </View>
+                                  {!!item.githubUrl && (
+                                    <Text style={[styles.githubLink]} numberOfLines={1}>🔗 {item.githubUrl}</Text>
+                                  )}
+                                  <View style={styles.cardFooter}>
+                                    <Text style={styles.dateText}>{formatTimeAgo(item.createdAt)}</Text>
+                                    <TouchableOpacity onPress={() => openProjectSheet(item)} activeOpacity={0.7}>
+                                      <Text style={styles.moreBtn}>Detayları Gör →</Text>
+                                    </TouchableOpacity>
+                                  </View>
+                                </View>
+                              );
+                            }
+
+                           const isExpanded = expandedPosts[item.id];
+                           const hasMedia = !!(item.mediaUri && item.mediaUri.length > 5);
+                           const displayContent = (item.content?.length > 100 && !isExpanded)
+                             ? item.content.substring(0, 100) + '...'
+                             : item.content;
+                           return (
+                             <SavedPostCard
+                               key={item.id}
+                               item={item}
+                               isExpanded={isExpanded}
+                               hasMedia={hasMedia}
+                               displayContent={displayContent}
+                               colors={colors}
+                               onToggleExpand={toggleExpand}
+                               onPostAction={handlePostAction}
+                               onCommentPress={(id) => { setActivePostId(id); setCommentModalVisible(true); }}
+                               onOptionsPress={isOwnProfile ? handleOptionsPress : null}
+                               navigation={navigation}
+                             />
+                           );
+                         })}
+                      </View>
+                   ) : <Text style={styles.emptyText}>Bu kategoride kayıt yok.</Text>}
+                </View>
+             ) : (
+                <View>
+                   {['Postlar', 'İş İlanları', 'Projeler'].map(cat => (
+                      <TouchableOpacity key={cat} onPress={() => setSavedCategory(cat)} style={[styles.card, {padding: 20}]}>
+                         <Text style={{color: colors.textMain, fontSize: 16, fontWeight: 'bold'}}>{cat}</Text>
                       </TouchableOpacity>
-                    )}
-                  </View>
+                   ))}
+                </View>
+             )
+          ) : tabData.length > 0 ? (
+              tabData.map(item => {
+                if (selectedTab === 'Postlar') {
+                  const isExpanded = expandedPosts[item.id];
+                  const hasMedia = !!(item.mediaUri && item.mediaUri.length > 5);
+                  const displayContent = (item.content?.length > 100 && !isExpanded)
+                    ? item.content.substring(0, 100) + '...'
+                    : item.content;
+                  return (
+                    <SavedPostCard
+                      key={item.id}
+                      item={item}
+                      isExpanded={isExpanded}
+                      hasMedia={hasMedia}
+                      displayContent={displayContent}
+                      colors={colors}
+                      onToggleExpand={toggleExpand}
+                      onPostAction={handlePostAction}
+                      onCommentPress={(id) => { setActivePostId(id); setCommentModalVisible(true); }}
+                      onOptionsPress={isOwnProfile ? handleOptionsPress : null}
+                      navigation={navigation}
+                    />
+                  );
+                }
 
-                  {displayContent ? (
-                    <View style={styles.postCardContent}>
-                      <Text style={styles.postCardText}>
-                        {displayContent}
-                        {item.content?.length > 100 && (
-                          <Text onPress={() => toggleExpand(item.id)} style={styles.postMoreText}>
-                            {isExpanded ? ' Daha Az' : ' ...daha fazla'}
-                          </Text>
-                        )}
-                      </Text>
-                    </View>
-                  ) : null}
-
-                  {hasMedia && (
-                    <View style={styles.postMediaWrapper}>
-                      {item.mediaType === 'image' ? (
-                        <Image source={{ uri: item.mediaUri }} style={styles.postMediaContent} resizeMode="cover" />
-                      ) : (
-                        <VideoPlayer videoUri={item.mediaUri} style={styles.postMediaContent} />
+                // Blog & Projeler cards
+                return (
+                  <View key={item.id} style={styles.card}>
+                    <View style={styles.cardHeaderRow}>
+                      <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
+                      {isOwnProfile && (
+                        <TouchableOpacity style={styles.cardOptionsBtn} onPress={(event) => handleOptionsPress(item, event.nativeEvent.pageY)}>
+                          <Text style={styles.cardOptionsText}>···</Text>
+                        </TouchableOpacity>
                       )}
                     </View>
-                  )}
-
-                  <View style={styles.postCardActions}>
-                    <TouchableOpacity
-                      style={styles.postActionBtn}
-                      onPress={() => handlePostAction(item.id, 'likedBy', item.liked)}
-                    >
-                      <Image
-                        source={item.liked ? require('../../assets/images/RedLike.png') : require('../../assets/images/Heart.png')}
-                        style={[styles.postActionIcon, { tintColor: item.liked ? '#FF4B4B' : colors.iconTint }]}
-                      />
-                      <Text style={[styles.postActionLabel, item.liked && { color: '#FF4B4B' }]}>
-                        {item.likesCount > 0 ? item.likesCount : ''} Beğeni
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.postActionBtn}
-                      onPress={() => { setActivePostId(item.id); setCommentModalVisible(true); }}
-                    >
-                      <Image source={require('../../assets/images/Comment.png')} style={[styles.postActionIcon, { tintColor: colors.iconTint }]} />
-                      <Text style={styles.postActionLabel}>Yorum</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.postActionBtn}
-                      onPress={() => handlePostAction(item.id, 'repeatedBy', item.repeated)}
-                    >
-                      <Image
-                        source={item.repeated ? require('../../assets/images/PinkRepeat.png') : require('../../assets/images/Repeat.png')}
-                        style={[styles.postActionIcon, { tintColor: item.repeated ? '#00BA7C' : colors.iconTint }]}
-                      />
-                      <Text style={[styles.postActionLabel, item.repeated && { color: '#00BA7C' }]}>Repost</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.postActionBtn}>
-                      <Image source={require('../../assets/images/Share.png')} style={[styles.postActionIcon, { tintColor: colors.iconTint }]} />
-                      <Text style={styles.postActionLabel}>Gönder</Text>
-                    </TouchableOpacity>
+                    {selectedTab === 'Projeler' && !!item.githubUrl && (
+                      <Text style={[styles.githubLink]} numberOfLines={1}>🔗 {item.githubUrl}</Text>
+                    )}
+                    <View style={styles.cardFooter}>
+                      <Text style={styles.dateText}>{formatTimeAgo(item.createdAt)}</Text>
+                      {selectedTab === 'Projeler' && (
+                        <TouchableOpacity onPress={() => openProjectSheet(item)} activeOpacity={0.7}>
+                          <Text style={styles.moreBtn}>Detayları Gör →</Text>
+                        </TouchableOpacity>
+                      )}
+                      {selectedTab === 'Blog' && (
+                        <Text style={styles.moreBtn}>Devamını Oku →</Text>
+                      )}
+                    </View>
                   </View>
-                </View>
-              );
-            }
-
-            // Blog & Projeler cards
-            return (
-              <View key={item.id} style={styles.card}>
-                <View style={styles.cardHeaderRow}>
-                  <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
-                  {isOwnProfile && (
-                    <TouchableOpacity style={styles.cardOptionsBtn} onPress={(event) => handleOptionsPress(item, event.nativeEvent.pageY)}>
-                      <Text style={styles.cardOptionsText}>···</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-                <Text style={styles.cardContent} numberOfLines={3}>
-                  {selectedTab === 'Projeler' ? (item.readme || 'Açıklama yok') : item.content}
-                </Text>
-                {selectedTab === 'Projeler' && !!item.githubUrl && (
-                  <Text style={[styles.githubLink]} numberOfLines={1}>🔗 {item.githubUrl}</Text>
-                )}
-                <View style={styles.cardFooter}>
-                  <Text style={styles.dateText}>{formatTimeAgo(item.createdAt)}</Text>
-                  {selectedTab === 'Projeler' && (
-                    <TouchableOpacity onPress={() => openProjectSheet(item)} activeOpacity={0.7}>
-                      <Text style={styles.moreBtn}>Detayları Gör →</Text>
-                    </TouchableOpacity>
-                  )}
-                  {selectedTab === 'Blog' && (
-                    <Text style={styles.moreBtn}>Devamını Oku →</Text>
-                  )}
-                </View>
-              </View>
-            );
-          }) : (
-            <Text style={styles.emptyText}>Henüz bir içerik bulunmuyor.</Text>
+                );
+              })
+          ) : (
+            selectedTab !== 'Kaydedilenler' && <Text style={styles.emptyText}>Henüz bir içerik bulunmuyor.</Text>
           )}
         </View>
       </Animated.ScrollView>
@@ -702,11 +1511,22 @@ export default function ProfilePage() {
       />
       <PostOptionsMenu
         visible={!!optionsItem}
-        isOwnPost={isOwnProfile}
+        isOwnPost={optionsItem?.userId === loggedInUserId}
+        isSaved={optionsItem?.saved}
         onDelete={handleDeleteItem}
         onReport={handleReportItem}
+        onSave={() => handleToggleSave(optionsItem)}
         onClose={() => setOptionsItem(null)}
         anchorY={menuAnchorY}
+      />
+      <ProfileEditSheet
+        visible={editSheetVisible}
+        onClose={() => setEditSheetVisible(false)}
+        colors={colors}
+        isDark={isDark}
+        userData={userData}
+        userId={loggedInUserId}
+        onSaveSuccess={fetchUser}
       />
     </View>
   );
@@ -831,19 +1651,20 @@ const getStyles = (colors) => StyleSheet.create({
   profileSection: { flexDirection: 'row', paddingHorizontal: 20, alignItems: 'center', marginBottom: 20, width: '100%', marginTop: -36 },
   avatarWrapper: { width: 90, height: 90, borderRadius: 15, overflow: 'hidden', backgroundColor: colors.border, borderWidth: 3, borderColor: colors.background },
   avatar: { width: '100%', height: '100%', resizeMode: 'cover' },
-  nameContainer: { flex: 1, marginLeft: 15, justifyContent: 'center' },
-  nameBlur: { alignSelf: 'flex-start', borderRadius: 8, overflow: 'hidden', paddingHorizontal: 8, paddingVertical: 3, marginBottom: 2 },
+  nameContainer: { flex: 1, marginLeft: 15, justifyContent: 'center', marginTop: -10 },
+  nameBlur: { alignSelf: 'flex-start', borderRadius: 8, overflow: 'hidden', paddingHorizontal: 8, paddingVertical: 3, marginBottom: 5 },
   nameText: { color: colors.textMain, fontSize: 20, fontWeight: 'bold' },
   jobText: { color: colors.textSub, fontSize: 14, marginVertical: 2 },
 
   statsContainer: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, alignItems: 'center' },
   statsLeft: { flexDirection: 'row' },
-  statItem: { marginRight: 25 },
-  statValue: { color: colors.textMain, fontSize: 18, fontWeight: 'bold' },
-  statLabel: { color: colors.textSub, fontSize: 12 },
+  statItem: { marginRight: 25, alignItems: 'center' },
+  statValue: { color: colors.textMain, fontSize: 18, fontWeight: 'bold', textAlign: 'center' },
+  statLabel: { color: colors.textSub, fontSize: 12, textAlign: 'center' },
   companyInfo: { flexDirection: 'row', alignItems: 'center', flex: 1, justifyContent: 'flex-end' },
 
   infoRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+  locationRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
   logoContainer: {
     width: 26,
     height: 26,
@@ -904,15 +1725,31 @@ const getStyles = (colors) => StyleSheet.create({
   },
   cardContent: { color: colors.textSub, fontSize: 14, lineHeight: 20 },
   githubLink: { color: colors.primary, fontSize: 12, marginTop: 6 },
-  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 15 },
+  cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 },
   dateText: { color: colors.textSub, fontSize: 11 },
   moreBtn: { color: colors.primary, fontSize: 12, fontWeight: 'bold' },
-  emptyText: { color: colors.textSub, textAlign: 'center', marginTop: 20 },
+  savedGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    paddingHorizontal: 15,
+  },
+  savedItem: {
+    width: '48%',
+    aspectRatio: 1,
+    marginBottom: 15,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: colors.border,
+  },
+  savedImage: { width: '100%', height: '100%' },
+  savedPlaceholder: { flex: 1, padding: 10, justifyContent: 'center' },
+  savedText: { fontSize: 12, color: colors.textMain },
+  emptyText: { color: colors.textSub, fontSize: 14, textAlign: 'center', marginTop: 20 },
 
-  // ── HomePage-style Post Card ──
   postCard: {
     backgroundColor: colors.cardBackground,
-    marginHorizontal: 10,
+    marginHorizontal: 0,
     marginBottom: 12,
     borderRadius: 20,
     borderWidth: 1,
@@ -963,4 +1800,66 @@ const getStyles = (colors) => StyleSheet.create({
   },
   postActionIcon: { width: 20, height: 20, resizeMode: 'contain' },
   postActionLabel: { color: colors.textSub, fontSize: 13, marginLeft: 6, fontWeight: '600' },
+  savedVideoContainer: {
+    flex: 1,
+    position: 'relative',
+  },
+  videoDurationBadge: {
+    position: 'absolute',
+    bottom: 5,
+    right: 5,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  videoDurationText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  jobCard: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 12,
+    marginHorizontal: 0,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  jobCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  jobLogo: {
+    width: 45,
+    height: 45,
+    borderRadius: 8,
+    marginRight: 12,
+    backgroundColor: colors.border,
+  },
+  jobCardTitle: {
+    color: colors.primary,
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  jobCardSub: {
+    color: colors.textMain,
+    fontSize: 13,
+    opacity: 0.8,
+    marginTop: 2,
+  },
+  jobCardContent: {
+    color: colors.textMain,
+    fontSize: 14,
+    marginTop: 10,
+    lineHeight: 20,
+  },
+  jobCardImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 8,
+    marginVertical: 10,
+    resizeMode: 'cover',
+  },
 });

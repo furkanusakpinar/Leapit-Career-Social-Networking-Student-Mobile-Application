@@ -11,26 +11,21 @@ import {
   Dimensions,
 } from 'react-native';
 import { useSelector } from 'react-redux';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import { lightTheme, darkTheme } from '../theme/colors';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 /**
  * PostOptionsMenu – Anchored popup Context Menu
- *
- * Props:
- *   visible      {boolean}  – controls visibility
- *   isOwnPost    {boolean}  – true  → show "Sil",  false → show "Bildir"
- *   onDelete     {function} – called when user confirms delete
- *   onReport     {function} – called when user confirms report
- *   onClose      {function} – called when backdrop / cancel pressed
- *   anchorY      {number}   – vertical coordinate of the click to position menu
  */
 export default function PostOptionsMenu({
   visible,
   isOwnPost,
+  isSaved,
   onDelete,
   onReport,
+  onSave,
   onClose,
   anchorY = 0,
 }) {
@@ -72,7 +67,7 @@ export default function PostOptionsMenu({
   }, [visible]);
 
   // Prevent menu from overflowing off the bottom of the screen
-  const menuHeight = isOwnPost ? 75 : 75; // Approx height of the menu
+  const menuHeight = isOwnPost ? 120 : 120;
   const isCloseToBottom = anchorY + menuHeight > SCREEN_HEIGHT - 100;
   const topPos = isCloseToBottom ? anchorY - menuHeight - 15 : anchorY + 15;
 
@@ -84,10 +79,8 @@ export default function PostOptionsMenu({
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      {/* Invisible backdrop to dismiss the context menu on press */}
       <Pressable style={styles.backdrop} onPress={onClose} />
 
-      {/* Floating Context Menu Box */}
       <Animated.View
         style={[
           styles.menuBox,
@@ -100,24 +93,36 @@ export default function PostOptionsMenu({
           },
         ]}
       >
+        <TouchableOpacity
+          style={[styles.menuItem, { borderBottomColor: colors.border, borderBottomWidth: 0.5 }]}
+          onPress={onSave}
+          activeOpacity={0.7}
+        >
+          <MaterialCommunityIcons name={isSaved ? "bookmark-off-outline" : "bookmark-outline"} size={20} color={colors.textMain} style={styles.menuIcon} />
+          <Text style={[styles.menuItemText, { color: colors.textMain }]}>
+            {isSaved ? "Kaydedilenlerden Kaldır" : "Kaydet"}
+          </Text>
+        </TouchableOpacity>
+
         {isOwnPost ? (
           <TouchableOpacity
-            style={[styles.menuItem, { borderBottomColor: colors.border }]}
+            style={styles.menuItem}
             onPress={onDelete}
             activeOpacity={0.7}
           >
+            <MaterialCommunityIcons name="delete-outline" size={20} color="#FF3B30" style={styles.menuIcon} />
             <Text style={[styles.menuItemText, { color: '#FF3B30' }]}>Gönderiyi Sil</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
-            style={[styles.menuItem, { borderBottomColor: colors.border }]}
+            style={styles.menuItem}
             onPress={onReport}
             activeOpacity={0.7}
           >
+            <MaterialCommunityIcons name="alert-circle-outline" size={20} color={colors.textMain} style={styles.menuIcon} />
             <Text style={[styles.menuItemText, { color: colors.textMain }]}>Bildir</Text>
           </TouchableOpacity>
         )}
-
       </Animated.View>
     </Modal>
   );
@@ -126,12 +131,12 @@ export default function PostOptionsMenu({
 const styles = StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.15)', // Light overlay to emphasize popup without blocking
+    backgroundColor: 'rgba(0,0,0,0.15)',
   },
   menuBox: {
     position: 'absolute',
     right: 20,
-    width: 170,
+    width: 220,
     borderRadius: 14,
     borderWidth: 1,
     shadowColor: '#000',
@@ -142,10 +147,13 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 14,
     paddingHorizontal: 16,
-    justifyContent: 'center',
-    borderBottomWidth: 0.5,
+  },
+  menuIcon: {
+    marginRight: 10,
   },
   menuItemText: {
     fontSize: 14,

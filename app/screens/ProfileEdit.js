@@ -373,7 +373,7 @@ const getStyles = (colors) => StyleSheet.create({
     },
 
     titleText: { color: colors.textSub, marginBottom: 4, fontSize: 12, fontWeight: '600', marginTop: 12 },
-    input: { backgroundColor: colors.border, borderRadius: 10, padding: 10, color: colors.textMain, fontSize: 14, marginBottom: 4 },
+    input: { backgroundColor: '#13151C', borderRadius: 10, padding: 10, color: colors.textMain, fontSize: 14, marginBottom: 4 },
     bioInput: { height: 80, textAlignVertical: 'top' },
     locationInput: { height: 50 },
     charCount: {

@@ -8,7 +8,6 @@ import Social from '../screens/Social';
 import SendMessage from '../screens/SendMessage';
 import ProfilePage from '../screens/ProfilePage';
 import SettingPage from '../screens/SettingsPage';
-import ProfileEdit from '../screens/ProfileEdit';
 import PhotoSharePage from '../screens/PhotoSharePage';
 import SharePage from '../screens/SharePage';
 import ProjectPage from '../screens/ProjectPage';
@@ -71,7 +70,6 @@ const UserStack = () => {
       {}
       <Stack.Screen name="ProfilePage" component={ProfilePage} />
       <Stack.Screen name="SettingPage" component={SettingPage} />
-      <Stack.Screen name="ProfileEdit" component={ProfileEdit} />
       <Stack.Screen name="PhotoSharePage" component={PhotoSharePage} />
       <Stack.Screen name="SharePage" component={SharePage} />
       <Stack.Screen name="PublicPage" component={PublicPage} />

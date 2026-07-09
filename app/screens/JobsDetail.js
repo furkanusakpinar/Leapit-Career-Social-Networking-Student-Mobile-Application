@@ -1,5 +1,5 @@
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, deleteDoc, setDoc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -41,6 +41,7 @@ const JobsDetail = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [countryCodeModalVisible, setCountryCodeModalVisible] = useState(false);
   const [jobPosterUserData, setJobPosterUserData] = useState(null);
+  const [isSaved, setIsSaved] = useState(false);
 
   const [email, setEmail] = useState('');
   const [countryCode, setCountryCode] = useState('+90');
@@ -97,6 +98,12 @@ const JobsDetail = () => {
           }
         }
 
+        if (userId) {
+          const saveRef = doc(db, 'Users', userId, 'saves', 'İş İlanları', 'items', jobsId);
+          const saveSnap = await getDoc(saveRef);
+          setIsSaved(saveSnap.exists());
+        }
+
         const logoUri = await getCompanyLogoUri(postData.company || '');
         setCompanyLogoUri(logoUri);
 
@@ -117,7 +124,7 @@ const JobsDetail = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [jobsId, refreshing]);
+  }, [jobsId, refreshing, userId]);
 
   useEffect(() => { fetchJobsPosts(); }, [fetchJobsPosts]);
 
@@ -133,6 +140,39 @@ const JobsDetail = () => {
       recipientJob: jobPosterUserData.job || jobPosterUserData.profession,
       recipientProfileImageUrl: jobPosterUserData.profileImageUrl,
     });
+  };
+
+  const handleToggleSave = async () => {
+    if (!userId || !jobsId) {
+      Alert.alert('Hata', 'Giriş yapmanız gerekiyor.');
+      return;
+    }
+    try {
+      const saveRef = doc(db, 'Users', userId, 'saves', 'İş İlanları', 'items', jobsId);
+      const jobDocRef = doc(db, 'JobsPosts', jobsId);
+      
+      if (isSaved) {
+        await deleteDoc(saveRef);
+        await updateDoc(jobDocRef, {
+          savedBy: arrayRemove(userId)
+        });
+        setIsSaved(false);
+        Alert.alert('Bilgi', 'İlan kaydedilenlerden kaldırıldı.');
+      } else {
+        await setDoc(saveRef, {
+          postId: jobsId,
+          savedAt: new Date()
+        });
+        await updateDoc(jobDocRef, {
+          savedBy: arrayUnion(userId)
+        });
+        setIsSaved(true);
+        Alert.alert('Başarılı', 'İlan başarıyla kaydedildi.');
+      }
+    } catch (e) {
+      console.error('Kaydetme hatası:', e);
+      Alert.alert('Hata', 'İşlem gerçekleştirilemedi.');
+    }
   };
 
   
@@ -190,8 +230,17 @@ const JobsDetail = () => {
                 <Pressable style={[styles.btn, styles.btnPrimary]} onPress={() => setModalVisible(true)}>
                   <Text style={styles.btnTextWhite}>Başvur</Text>
                 </Pressable>
-                <Pressable style={[styles.btn, styles.btnSecondary]}>
-                  <Text style={styles.btnTextBlue}>Kaydet</Text>
+                <Pressable 
+                  style={[
+                    styles.btn, 
+                    styles.btnSecondary, 
+                    isSaved && { backgroundColor: themeMode === 'light' ? '#E5E7EB' : '#374151', borderColor: 'transparent' }
+                  ]}
+                  onPress={handleToggleSave}
+                >
+                  <Text style={[styles.btnTextBlue, isSaved && { color: themeMode === 'light' ? '#6B7280' : '#9CA3AF' }]}>
+                    {isSaved ? 'Kaydedildi' : 'Kaydet'}
+                  </Text>
                 </Pressable>
               </View>
 
