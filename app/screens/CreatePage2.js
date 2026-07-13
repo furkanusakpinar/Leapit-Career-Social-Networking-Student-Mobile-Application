@@ -72,7 +72,10 @@ const CreatePage2 = ({ route }) => {
         const querySnapshot = await getDocs(q);
         const users = [];
         querySnapshot.forEach((doc) => {
-          users.push({ id: doc.id, ...doc.data() });
+          const data = doc.data();
+          if (data.profileCompleted === true || data.isProfileComplete === true) {
+            users.push({ id: doc.id, ...data });
+          }
         });
         if (isMounted) {
           setSuggestedUsers(users);
@@ -249,37 +252,36 @@ const CreatePage2 = ({ route }) => {
         >
 
           <View style={styles.loginCard}>
-            {}
-            <View style={styles.bannerContainer}>
-              <Pressable onPress={() => pickImage('banner')} style={styles.bannerPressable}>
+            {/* Banner */}
+            <View style={{ width: '100%', marginBottom: 48, marginTop: 20 }}>
+              <Pressable onPress={() => pickImage('banner')} style={{ width: '100%', height: 110, borderRadius: 14, overflow: 'hidden', backgroundColor: colors.border }}>
                 {bannerImageUri ? (
-                  <Image source={{ uri: bannerImageUri }} style={styles.bannerImage} />
+                  <Image source={{ uri: bannerImageUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                 ) : (
-                  <View style={styles.bannerPlaceholder}>
-                    <Ionicons name="image" size={30} color={colors.textSub} />
-                    <Text style={styles.bannerPlaceholderText}>Kapak Fotoğrafı Ekle</Text>
+                  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                    <Ionicons name="image-outline" size={26} color={colors.textSub} />
                   </View>
                 )}
-                <View style={styles.bannerCameraIcon}>
-                  <Ionicons name="camera" size={18} color="white" />
+                <View style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.5)', padding: 5, borderRadius: 15 }}>
+                  <Ionicons name="camera" size={14} color="white" />
                 </View>
               </Pressable>
-            </View>
 
-            {}
-            <View style={styles.profileImageWrapper}>
-              <Pressable onPress={() => pickImage('profile')} style={styles.imagePressable}>
-                {profileImageUri ? (
-                  <Image source={{ uri: profileImageUri }} style={styles.profileImage} />
-                ) : (
-                  <View style={[styles.profileImage, { justifyContent: 'center', alignItems: 'center', backgroundColor: colors.border }]}>
-                    <MaterialCommunityIcons name="account-circle" size={92} color={colors.textSub} />
+              {/* Avatar — bannerın sol altına bindirme */}
+              <View style={{ position: 'absolute', bottom: -44, left: 16 }}>
+                <Pressable onPress={() => pickImage('profile')} style={{ position: 'relative' }}>
+                  {profileImageUri ? (
+                    <Image source={{ uri: profileImageUri }} style={{ width: 80, height: 80, borderRadius: 13, borderWidth: 3, borderColor: colors.cardBackground }} />
+                  ) : (
+                    <View style={{ width: 80, height: 80, borderRadius: 13, borderWidth: 3, borderColor: colors.cardBackground, backgroundColor: colors.border, justifyContent: 'center', alignItems: 'center' }}>
+                      <MaterialCommunityIcons name="account" size={48} color={colors.textSub} />
+                    </View>
+                  )}
+                  <View style={{ position: 'absolute', bottom: 2, right: 2, backgroundColor: colors.primary, width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: colors.cardBackground }}>
+                    <Ionicons name="camera" size={11} color="white" />
                   </View>
-                )}
-                <View style={styles.cameraIconBadge}>
-                  <Ionicons name="camera" size={16} color="white" />
-                </View>
-              </Pressable>
+                </Pressable>
+              </View>
             </View>
 
             <Text style={styles.titleText}>Hakkımda</Text>
@@ -315,7 +317,7 @@ const CreatePage2 = ({ route }) => {
                   <View key={item.id} style={styles.userCard}>
                     <View style={styles.cardHeaderArea}>
                       <Image
-                        source={{ uri: 'https://images.unsplash.com/photo-1557683316-973673baf926?q=80&w=100&auto=format&fit=crop' }}
+                        source={item.backProfileImageUrl ? { uri: item.backProfileImageUrl } : { uri: 'https://images.unsplash.com/photo-1557683316-973673baf926?q=80&w=100&auto=format&fit=crop' }}
                         style={styles.coverImage}
                       />
                     </View>
@@ -418,14 +420,14 @@ const getStyles = (colors) => StyleSheet.create({
   },
 
   titleText: { color: colors.textSub, marginBottom: 4, fontSize: 12, fontWeight: '600' },
-  input: { backgroundColor: colors.border, borderRadius: 10, padding: 10, color: colors.textMain, fontSize: 14, marginBottom: 8 },
+  input: { backgroundColor: colors.mode === 'dark' ? '#13151C' : colors.border, borderRadius: 10, padding: 10, color: colors.textMain, fontSize: 14, marginBottom: 8 },
   bioInput: { height: 80, textAlignVertical: 'top' },
   locationInput: { height: 50 },
   connectionSection: { marginVertical: 8 },
   connectionTitle: { color: colors.textMain, fontSize: 14, fontWeight: '600', marginBottom: 8 },
   userList: { height: 165 },
   userCard: { backgroundColor: colors.background, width: 150, height: 160, borderRadius: 12, marginRight: 10, overflow: 'hidden', borderWidth: 1, borderColor: colors.border },
-  cardHeaderArea: { width: '100%', height: 45 },
+  cardHeaderArea: { width: '100%', height: 45, backgroundColor: colors.border },
   coverImage: { width: '100%', height: '100%', opacity: 0.5 },
   suggestedUserImage: { width: 60, height: 60, borderRadius: 30, marginTop: -25, alignSelf: 'center', borderWidth: 2, borderColor: colors.border, zIndex: 1 },
   userCardInfo: { alignItems: 'center', paddingHorizontal: 4, flex: 1, justifyContent: 'space-evenly', paddingBottom: 4 },

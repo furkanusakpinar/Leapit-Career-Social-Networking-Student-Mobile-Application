@@ -6,6 +6,7 @@ import {
   Dimensions,
   Easing,
   Image,
+  Keyboard,
   KeyboardAvoidingView, Modal, Platform,
   Pressable,
   StyleSheet,
@@ -99,6 +100,31 @@ const LoginPage = () => {
   const insets = useSafeAreaInsets();
   const dispatch = useDispatch();
   const navigation = useNavigation();
+
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardVisible(true);
+        setKeyboardHeight(e.endCoordinates.height);
+      }
+    );
+    const hideSubscription = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardVisible(false);
+        setKeyboardHeight(0);
+      }
+    );
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
 
   const themeMode = useSelector(state => state.theme?.mode || 'dark');
   const colors = themeMode === 'light' ? lightTheme : darkTheme;
@@ -374,23 +400,24 @@ const LoginPage = () => {
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
       <ParticleBackground color={themeMode === 'dark' ? 'rgba(100,149,237,0.45)' : 'rgba(80,80,180,0.35)'} />
-      <SafeAreaView style={[styles.safeArea, { backgroundColor: 'transparent' }]} edges={['top', 'left', 'right']}>
-      <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.content}>
+      <View style={[styles.container, { paddingBottom: keyboardHeight }]}>
+        <View style={[styles.content, { paddingTop: insets.top }]}>
           <View style={styles.topSection}>
-            <View style={styles.imageContainer}>
-              {[animValue1, animValue2, animValue3, animValue4].map((anim, i) => (
-                <Animated.View key={i} style={[styles.circleImageWrapper, getImageStyle(anim, i), { zIndex: zIndices[i] }]}>
-                  <Image source={[image1, image2, image3, image4][i]} style={styles.circleImage} />
-                </Animated.View>
-              ))}
-            </View>
-            <Text style={styles.brandName}>
+            {!isKeyboardVisible && (
+              <View style={styles.imageContainer}>
+                {[animValue1, animValue2, animValue3, animValue4].map((anim, i) => (
+                  <Animated.View key={i} style={[styles.circleImageWrapper, getImageStyle(anim, i), { zIndex: zIndices[i] }]}>
+                    <Image source={[image1, image2, image3, image4][i]} style={styles.circleImage} />
+                  </Animated.View>
+                ))}
+              </View>
+            )}
+            <Text style={[styles.brandName, isKeyboardVisible && { marginTop: 20 }]}>
               Leapit <Text style={styles.brandTagline}>Her şey{"\n"}Daha Kolay</Text>
             </Text>
           </View>
 
-          <View style={[styles.loginCard, { paddingBottom: Platform.OS === 'ios' ? insets.bottom + 20 : 30 }]}>
+          <View style={[styles.loginCard, { paddingBottom: Platform.OS === 'ios' ? insets.bottom + 50 : 60 }]}>
             <View style={styles.cardHeader}>
               <Text style={styles.cardHeaderText}>Leapit yeni misiniz?</Text>
               <Pressable onPress={() => navigation.navigate('Signup')}>
@@ -441,7 +468,7 @@ const LoginPage = () => {
             </Pressable>
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </View>
 
 
       {/* BottomSheet Modal */}
@@ -466,7 +493,6 @@ const LoginPage = () => {
           </Pressable>
         </Animated.View>
       </Modal>
-    </SafeAreaView>
     </View>
   );
 };
@@ -474,18 +500,18 @@ const LoginPage = () => {
 const getStyles = (colors) => StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: 'transparent' },
   container: { flex: 1 },
-  content: { flex: 1, justifyContent: 'space-between' },
+  content: { flex: 1, justifyContent: 'flex-end' },
   topSection: { flex: 1, justifyContent: 'center', alignItems: 'center', zIndex: 1 },
-  imageContainer: { position: 'relative', height: 150, width: '100%', marginTop: 50 },
+  imageContainer: { position: 'relative', height: 150, width: '100%', marginTop: 30 },
   circleImageWrapper: { position: 'absolute', borderRadius: 100, overflow: 'hidden' },
   circleImage: { width: '100%', height: '100%', resizeMode: 'cover' },
-  brandName: { color: colors.primary, fontSize: 25, fontWeight: 'bold', marginTop: 140, textAlign: 'center' },
+  brandName: { color: colors.primary, fontSize: 25, fontWeight: 'bold', marginTop: 100, textAlign: 'center' },
   brandTagline: { color: colors.textMain, fontSize: 22, fontWeight: 'bold' },
   loginCard: { backgroundColor: colors.cardBackground, borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 24, zIndex: 10, elevation: 10, borderTopWidth: 1, borderLeftWidth: 1, borderRightWidth: 1, borderColor: colors.border },
   cardHeader: { alignItems: 'center', marginBottom: 20, gap: 5 },
   cardHeaderText: { color: colors.textSub, fontSize: 15 },
   cardHeaderLink: { color: colors.primary, fontWeight: 'bold', fontSize: 16 },
-  inputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.border, borderWidth: 1, borderColor: colors.border, borderRadius: 12, height: 50, paddingHorizontal: 15, marginBottom: 15 },
+  inputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.mode === 'dark' ? '#13151C' : colors.border, borderWidth: 1, borderColor: colors.border, borderRadius: 12, height: 50, paddingHorizontal: 15, marginBottom: 15 },
   inputIcon: { width: 24, height: 24, marginRight: 10 },
   input: { flex: 1, color: colors.textMain, fontSize: 16 },
   showPasswordIcon: { width: 24, height: 24 },

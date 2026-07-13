@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Image, StyleSheet } from 'react-native';
+import { View, Text, TextInput, Image, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Provider, useDispatch, useSelector } from 'react-redux';
@@ -9,6 +9,21 @@ import RootNavigation from './navigation/rootNavigation';
 import store from './redux/store';
 import { setTheme } from './redux/themeSlice';
 import { lightTheme, darkTheme } from './theme/colors';
+
+// Disable system font scaling globally for consistent UI sizing
+if (Text.defaultProps) {
+  Text.defaultProps.allowFontScaling = false;
+} else {
+  Text.defaultProps = {};
+  Text.defaultProps.allowFontScaling = false;
+}
+
+if (TextInput.defaultProps) {
+  TextInput.defaultProps.allowFontScaling = false;
+} else {
+  TextInput.defaultProps = {};
+  TextInput.defaultProps.allowFontScaling = false;
+}
 
 const warningIcon = require('../assets/images/warningIcon.png');
 

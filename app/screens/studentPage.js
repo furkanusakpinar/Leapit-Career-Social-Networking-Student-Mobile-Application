@@ -375,7 +375,7 @@ const getStyles = (colors) => StyleSheet.create({
   fieldWrapper: { position: 'relative', marginBottom: 12 },
   titleText: { color: colors.textSub, marginBottom: 4, fontSize: 12, fontWeight: '600' },
   input: {
-    backgroundColor: colors.border,
+    backgroundColor: colors.mode === 'dark' ? '#13151C' : colors.border,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 12,
@@ -393,7 +393,7 @@ const getStyles = (colors) => StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 10,
-    backgroundColor: colors.border,
+    backgroundColor: colors.mode === 'dark' ? '#13151C' : colors.border,
     borderRadius: 12,
     marginTop: 5
   },

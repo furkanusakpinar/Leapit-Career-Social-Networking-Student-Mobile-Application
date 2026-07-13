@@ -24,6 +24,7 @@ import VideoPlayer from '../components/VideoPlayer';
 import Toast, { BaseToast, ErrorToast } from 'react-native-toast-message';
 import { lightTheme, darkTheme } from '../theme/colors';
 import { uploadToCloudinary } from '../utils/cloudinary';
+import VisibilityMenu, { VISIBILITY_OPTIONS } from '../components/VisibilityMenu';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -56,6 +57,8 @@ export function SharePage() {
   const [newPost, setNewPost] = useState('');
   const [userData, setUserData] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [visibility, setVisibility] = useState('everyone');
+  const [visibilityMenuVisible, setVisibilityMenuVisible] = useState(false);
   const navigation = useNavigation();
   const route = useRoute();
   const { prePostId } = route.params || {};
@@ -125,6 +128,7 @@ export function SharePage() {
         content: newPost.trim(),
         mediaUri: finalMediaUri || '',
         mediaType: currentMedia.type || null,
+        visibility,
         createdAt: serverTimestamp(),
       });
 
@@ -176,10 +180,20 @@ export function SharePage() {
               />
               <View style={styles.profileInfo}>
                 <Text style={styles.userName}>{userData?.fullName || 'İsimsiz'}</Text>
-                <View style={styles.badge}>
-                  <Image source={require('../../assets/images/GlobalGray.png')} style={styles.badgeIcon} />
-                  <Text style={styles.badgeText}>Herkes görebilir</Text>
-                </View>
+                <Pressable style={styles.badge} onPress={() => setVisibilityMenuVisible(true)}>
+                  <Ionicons
+                    name={
+                      (VISIBILITY_OPTIONS.find(o => o.key === visibility) || VISIBILITY_OPTIONS[0]).icon
+                    }
+                    size={14}
+                    color={colors.textSub}
+                    style={{ marginRight: 4 }}
+                  />
+                  <Text style={styles.badgeText}>
+                    {VISIBILITY_OPTIONS.find(o => o.key === visibility)?.label || 'Herkes görebilir'}
+                  </Text>
+                  <Ionicons name="chevron-down" size={12} color={colors.textSub} style={{ marginLeft: 2 }} />
+                </Pressable>
               </View>
             </View>
 
@@ -213,6 +227,13 @@ export function SharePage() {
           </View>
         </Animated.View>
       </TouchableWithoutFeedback>
+
+      <VisibilityMenu
+        visible={visibilityMenuVisible}
+        selected={visibility}
+        onSelect={(key) => setVisibility(key)}
+        onClose={() => setVisibilityMenuVisible(false)}
+      />
 
     </SafeAreaView>
   );

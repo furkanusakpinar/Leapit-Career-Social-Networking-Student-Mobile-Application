@@ -178,6 +178,7 @@ const HomePage = () => {
   const [posts, setPosts] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [expandedPosts, setExpandedPosts] = useState({});
+  const [followingIds, setFollowingIds] = useState(new Set());
   const navigation = useNavigation();
   const userId = useSelector(state => state.user.userId);
   const themeMode = useSelector(state => state.theme?.mode || 'dark');
@@ -314,11 +315,36 @@ const HomePage = () => {
 
   useEffect(() => {
     if (!db || !userId) return;
+    const q = collection(db, 'Users', userId, 'following');
+    const unsubscribe = onSnapshot(q, snapshot => {
+      const ids = new Set();
+      snapshot.docs.forEach(docSnap => {
+        ids.add(docSnap.id);
+      });
+      setFollowingIds(ids);
+    });
+    return () => unsubscribe();
+  }, [userId]);
+
+  useEffect(() => {
+    if (!db || !userId) return;
     const q = query(collection(db, 'Posts'), orderBy('createdAt', 'desc'));
 
     const unsubscribe = onSnapshot(q, async snapshot => {
       const postsArr = await Promise.all(snapshot.docs.map(async docSnap => {
         const data = docSnap.data();
+
+        // Görünürlük Filtresi
+        const isAuthor = data.userId === userId;
+        const visibility = data.visibility || 'everyone';
+        let canSee = true;
+        if (visibility === 'only_me') {
+          canSee = isAuthor;
+        } else if (visibility === 'friends') {
+          canSee = isAuthor || followingIds.has(data.userId);
+        }
+
+        if (!canSee) return null;
 
         let profileImageUrl = null, userName = 'Bilinmeyen Kullanıcı', detailsArr = [];
         try {
@@ -353,7 +379,7 @@ const HomePage = () => {
     });
 
     return () => unsubscribe();
-  }, [userId, userData]);
+  }, [userId, userData, followingIds]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -400,16 +426,18 @@ const HomePage = () => {
                 </Pressable>
               </View>
 
-              <View style={styles.contentSection}>
-                <Text style={styles.cardDescInline}>
-                  {displayContent}
-                  {post.content?.length > 100 && (
-                    <Text onPress={() => toggleExpand(post.id)} style={styles.moreText}>
-                      {isExpanded ? " Daha Az" : " ...daha fazla"}
-                    </Text>
-                  )}
-                </Text>
-              </View>
+              {!!(post.content?.trim()) && (
+                <View style={styles.contentSection}>
+                  <Text style={styles.cardDescInline}>
+                    {displayContent}
+                    {post.content?.length > 100 && (
+                      <Text onPress={() => toggleExpand(post.id)} style={styles.moreText}>
+                        {isExpanded ? " Daha Az" : " ...daha fazla"}
+                      </Text>
+                    )}
+                  </Text>
+                </View>
+              )}
 
               {hasMedia && (
                 <View style={styles.mediaWrapper}>

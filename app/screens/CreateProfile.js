@@ -177,7 +177,7 @@ const CreateProfileScreen = ({ route }) => {
                 {}
                 <View style={styles.loginCard}>
                     <Text style={styles.titleText}>En son iş ünvanı *</Text>
-                    <View style={[styles.fieldWrapper, { zIndex: 50 }]}>
+                    <View style={[styles.fieldWrapper, { zIndex: activeInput === 'profession' ? 100 : 4 }]}>
                         <TextInput
                             style={styles.input}
                             placeholder="Meslek seçiniz"
@@ -192,7 +192,7 @@ const CreateProfileScreen = ({ route }) => {
                     </View>
 
                     <Text style={styles.titleText}>İstihdam Türü</Text>
-                    <View style={[styles.fieldWrapper, { zIndex: 40 }]}>
+                    <View style={[styles.fieldWrapper, { zIndex: activeInput === 'employmentType' ? 100 : 3 }]}>
                         <TextInput
                             style={styles.input}
                             placeholder="Tam zamanlı, Staj vb."
@@ -207,7 +207,7 @@ const CreateProfileScreen = ({ route }) => {
                     </View>
 
                     <Text style={styles.titleText}>En son Şirket *</Text>
-                    <View style={[styles.fieldWrapper, { zIndex: 10 }]}>
+                    <View style={[styles.fieldWrapper, { zIndex: activeInput === 'company' ? 100 : 2 }]}>
                         <TextInput
                             style={styles.input}
                             placeholder="Şirket adı"
@@ -222,7 +222,7 @@ const CreateProfileScreen = ({ route }) => {
                     </View>
 
                     <Text style={styles.titleText}>Okul / Üniversite *</Text>
-                    <View style={[styles.fieldWrapper, { zIndex: 100 }]}>
+                    <View style={[styles.fieldWrapper, { zIndex: activeInput === 'school' ? 100 : 1 }]}>
                         <TextInput
                             style={styles.input}
                             placeholder="Mezun olduğunuz okul"
@@ -310,7 +310,7 @@ const getStyles = (colors) => StyleSheet.create({
         fontWeight: '600'
     },
     input: {
-        backgroundColor: colors.border,
+        backgroundColor: colors.mode === 'dark' ? '#13151C' : colors.border,
         borderWidth: 1,
         borderColor: colors.border,
         borderRadius: 12,

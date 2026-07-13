@@ -497,7 +497,7 @@ function ProfileEditSheet({ visible, onClose, colors, isDark, userData, userId, 
             </View>
 
             {/* Hakkımda */}
-            <Text style={{ color: colors.textSub, fontSize: 12, fontWeight: '600', marginBottom: 4 }}>Hakkımda</Text>
+            <Text style={{ color: colors.textSub, fontSize: 12, fontWeight: '600', marginBottom: 4, marginTop: 10 }}>Hakkımda</Text>
             <TextInput
               placeholder="Kendinizden bahsedin..."
               placeholderTextColor={colors.textSub}
@@ -1054,7 +1054,27 @@ export default function ProfilePage() {
         }
       } else if (selectedTab === 'Postlar') {
         const snapshot = await getDocs(query(collection(db, 'Posts'), where('userId', '==', userId)));
-        data = await Promise.all(snapshot.docs.map(async d => {
+        
+        let isFollowing = false;
+        if (loggedInUserId && loggedInUserId !== userId) {
+          const followSnap = await getDoc(doc(db, 'Users', loggedInUserId, 'following', userId));
+          isFollowing = followSnap.exists();
+        }
+
+        const filteredDocs = snapshot.docs.filter(d => {
+          const postData = d.data();
+          const isAuthor = postData.userId === loggedInUserId;
+          const visibility = postData.visibility || 'everyone';
+
+          if (visibility === 'only_me') {
+            return isAuthor;
+          } else if (visibility === 'friends') {
+            return isAuthor || isFollowing;
+          }
+          return true;
+        });
+
+        data = await Promise.all(filteredDocs.map(async d => {
           const postData = d.data();
           return {
             id: d.id,
@@ -1682,10 +1702,10 @@ const getStyles = (colors) => StyleSheet.create({
   bioText: { color: colors.textMain, fontSize: 14, lineHeight: 22 },
   divider: { height: 1, backgroundColor: colors.border, marginHorizontal: 20, marginTop: 15, marginBottom: 5 },
 
-  tabBar: { flexDirection: 'row', marginTop: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
-  tabItem: { flex: 1, alignItems: 'center', paddingVertical: 15 },
-  activeTab: { borderBottomWidth: 2, borderBottomColor: colors.textMain },
-  tabText: { color: colors.textSub, fontWeight: 'bold' },
+  tabBar: { flexDirection: 'row', marginTop: 10, borderBottomWidth: 1, borderBottomColor: colors.border, justifyContent: 'center', alignItems: 'center' },
+  tabItem: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 15, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  activeTab: { borderBottomColor: colors.textMain },
+  tabText: { color: colors.textSub, fontWeight: 'bold', textAlign: 'center' },
   activeTabText: { color: colors.textMain },
 
   card: { backgroundColor: colors.cardBackground, padding: 15, borderRadius: 20, marginBottom: 15, borderWidth: 1, borderColor: colors.border },

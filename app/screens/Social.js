@@ -1,4 +1,4 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import {
   collection,
@@ -37,6 +37,7 @@ const Social = () => {
   const userId = useSelector(state => state.user.userId);
   const [conversations, setConversations] = useState([]);
   const [connectionSuggestions, setConnectionSuggestions] = useState([]);
+  const [connectedIds, setConnectedIds] = useState(new Set());
   const [pageLoading, setPageLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -64,12 +65,14 @@ const Social = () => {
       const allUsers = await getDocs(collection(db, 'Users'));
       const suggestions = [];
       allUsers.forEach(u => {
-        if (u.id !== userId && u.data().fullName) {
+        const data = u.data();
+        if (u.id !== userId && data.fullName && (data.profileCompleted === true || data.isProfileComplete === true)) {
           suggestions.push({
             recipientId: u.id,
-            name: u.data().fullName,
-            profession: u.data().job || u.data().profession,
-            profileImageUrl: u.data().profileImageUrl
+            name: data.fullName,
+            jobTitle: data.jobTitle || data.job || data.profession || '',
+            profileImageUrl: data.profileImageUrl || null,
+            backProfileImageUrl: data.backProfileImageUrl || null,
           });
         }
       });
@@ -78,6 +81,15 @@ const Social = () => {
       console.error("Öneri hatası:", e);
     }
   }, [userId]);
+
+  const handleConnectToggle = (id) => {
+    setConnectedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) newSet.delete(id);
+      else newSet.add(id);
+      return newSet;
+    });
+  };
 
   
   const listenConversations = useCallback(() => {
@@ -206,17 +218,45 @@ const Social = () => {
               horizontal
               showsHorizontalScrollIndicator={false}
               keyExtractor={(item) => item.recipientId}
+              contentContainerStyle={{ paddingRight: 16 }}
               renderItem={({ item }) => (
-                <Pressable style={styles.connCard} onPress={() => handleChatPress(item)}>
-                  <View style={styles.connAvatarWrap}>
-                    {item.profileImageUrl ? (
-                      <Image source={{ uri: item.profileImageUrl }} style={styles.connAvatar} />
-                    ) : (
-                      <MaterialCommunityIcons name="account-circle" size={60} color={colors.textSub} />
-                    )}
+                <View style={styles.connCard}>
+                  {/* Cover/Banner */}
+                  <View style={styles.connCoverArea}>
+                    <Image
+                      source={item.backProfileImageUrl
+                        ? { uri: item.backProfileImageUrl }
+                        : { uri: 'https://images.unsplash.com/photo-1557683316-973673baf926?q=80&w=100&auto=format&fit=crop' }}
+                      style={styles.connCoverImage}
+                    />
                   </View>
-                  <Text style={styles.connName} numberOfLines={1}>{item.name}</Text>
-                </Pressable>
+                  {/* Avatar */}
+                  {item.profileImageUrl ? (
+                    <Image source={{ uri: item.profileImageUrl }} style={styles.connAvatar} />
+                  ) : (
+                    <View style={[styles.connAvatar, { justifyContent: 'center', alignItems: 'center', backgroundColor: colors.border }]}>
+                      <MaterialCommunityIcons name="account-circle" size={46} color={colors.textSub} />
+                    </View>
+                  )}
+                  {/* Info */}
+                  <View style={styles.connCardInfo}>
+                    <Text style={styles.connName} numberOfLines={1}>{item.name}</Text>
+                    <Text style={styles.connTitle} numberOfLines={1}>{item.jobTitle || 'Üye'}</Text>
+                    <Pressable
+                      style={[styles.connButton, connectedIds.has(item.recipientId) && styles.connButtonActive]}
+                      onPress={() => handleConnectToggle(item.recipientId)}
+                    >
+                      <Ionicons
+                        name={connectedIds.has(item.recipientId) ? 'checkmark' : 'person-add'}
+                        size={13}
+                        color={connectedIds.has(item.recipientId) ? 'white' : colors.primary}
+                      />
+                      <Text style={[styles.connButtonText, { color: connectedIds.has(item.recipientId) ? 'white' : colors.primary }]}>
+                        {connectedIds.has(item.recipientId) ? 'Bağlanıldı' : 'Bağlan'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
               )}
             />
             <Text style={[styles.sectionTitle, { marginTop: 25 }]}>Mesajlar</Text>
@@ -254,15 +294,29 @@ const Social = () => {
 
 const getStyles = (colors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background, paddingTop: Platform.OS === 'android' ? 40 : 50 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 15 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
   backIcon: { width: 24, height: 24, resizeMode: 'contain' },
   headerTitle: { color: colors.textMain, fontSize: 18, fontWeight: '700' },
   headerSection: { paddingVertical: 10 },
   sectionTitle: { color: colors.textMain, fontSize: 16, fontWeight: '700', marginLeft: 16, marginBottom: 15 },
-  connCard: { alignItems: 'center', width: 75, marginLeft: 16 },
-  connAvatarWrap: { width: 60, height: 60, borderRadius: 30, backgroundColor: colors.cardBackground, overflow: 'hidden', marginBottom: 5 },
-  connAvatar: { width: '100%', height: '100%' },
-  connName: { color: colors.textMain, fontSize: 11, textAlign: 'center' },
+  connCard: { backgroundColor: colors.cardBackground, width: 145, height: 165, borderRadius: 12, marginLeft: 16, overflow: 'hidden', borderWidth: 1, borderColor: colors.border },
+  connCoverArea: { width: '100%', height: 45, backgroundColor: colors.border },
+  connCoverImage: { width: '100%', height: '100%', opacity: 0.5 },
+  connAvatar: { width: 54, height: 54, borderRadius: 27, marginTop: -22, alignSelf: 'center', borderWidth: 2, borderColor: colors.cardBackground, zIndex: 1, backgroundColor: colors.border },
+  connCardInfo: { alignItems: 'center', paddingHorizontal: 4, flex: 1, justifyContent: 'space-evenly', paddingBottom: 6 },
+  connName: { color: colors.textMain, fontSize: 11, fontWeight: 'bold', textAlign: 'center' },
+  connTitle: { color: colors.textSub, fontSize: 10, textAlign: 'center' },
+  connButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.border, paddingVertical: 5, width: '90%', justifyContent: 'center', borderRadius: 6, gap: 4, borderWidth: 1, borderColor: colors.primary },
+  connButtonActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  connButtonText: { fontSize: 10, fontWeight: 'bold' },
   msgItem: {
     flexDirection: 'row',
     paddingHorizontal: 16,

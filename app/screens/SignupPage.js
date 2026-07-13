@@ -7,6 +7,7 @@ import {
     Dimensions,
     Easing,
     Image,
+    Keyboard,
     KeyboardAvoidingView, Modal, Platform,
     Pressable,
     StyleSheet,
@@ -85,6 +86,31 @@ const SignupPage = () => {
     const themeMode = useSelector(state => state.theme?.mode || 'dark');
     const colors = themeMode === 'light' ? lightTheme : darkTheme;
     const styles = getStyles(colors);
+
+    const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+    const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+    useEffect(() => {
+        const showSubscription = Keyboard.addListener(
+            Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+            (e) => {
+                setKeyboardVisible(true);
+                setKeyboardHeight(e.endCoordinates.height);
+            }
+        );
+        const hideSubscription = Keyboard.addListener(
+            Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+            () => {
+                setKeyboardVisible(false);
+                setKeyboardHeight(0);
+            }
+        );
+
+        return () => {
+            showSubscription.remove();
+            hideSubscription.remove();
+        };
+    }, []);
 
     const [fullName, setFullName] = useState('');
     const [email, setEmail] = useState('');
@@ -305,36 +331,34 @@ const SignupPage = () => {
     return (
         <View style={{ flex: 1, backgroundColor: colors.background }}>
             <ParticleBackground color={themeMode === 'dark' ? 'rgba(100,149,237,0.45)' : 'rgba(80,80,180,0.35)'} />
-            <SafeAreaView style={[styles.safeArea, { backgroundColor: 'transparent' }]} edges={['top', 'left', 'right']}>
-            <KeyboardAvoidingView
-                style={styles.container}
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            >
-                <View style={styles.content}>
+            <View style={[styles.container, { paddingBottom: keyboardHeight }]}>
+                <View style={[styles.content, { paddingTop: insets.top }]}>
                     <View style={styles.topSection}>
-                        <View style={styles.imageContainer}>
-                            {[animValue1, animValue2, animValue3, animValue4].map((anim, i) => (
-                                <Animated.View
-                                    key={i}
-                                    style={[styles.circleImageWrapper, getImageStyle(anim, i), { zIndex: zIndices[i] }]}
-                                >
-                                    <Image source={[
-                                        require('../../assets/images/AIPhoto1.png'),
-                                        require('../../assets/images/AIPhoto4.png'),
-                                        require('../../assets/images/AIPhoto3.png'),
-                                        require('../../assets/images/AIPhoto2.png')
-                                    ][i]} style={styles.circleImage} />
-                                </Animated.View>
-                            ))}
-                        </View>
-                        <Text style={styles.brandName}>
+                        {!isKeyboardVisible && (
+                            <View style={styles.imageContainer}>
+                                {[animValue1, animValue2, animValue3, animValue4].map((anim, i) => (
+                                    <Animated.View
+                                        key={i}
+                                        style={[styles.circleImageWrapper, getImageStyle(anim, i), { zIndex: zIndices[i] }]}
+                                    >
+                                        <Image source={[
+                                            require('../../assets/images/AIPhoto1.png'),
+                                            require('../../assets/images/AIPhoto4.png'),
+                                            require('../../assets/images/AIPhoto3.png'),
+                                            require('../../assets/images/AIPhoto2.png')
+                                        ][i]} style={styles.circleImage} />
+                                    </Animated.View>
+                                ))}
+                            </View>
+                        )}
+                        <Text style={[styles.brandName, isKeyboardVisible && { marginTop: 20 }]}>
                             Leapit <Text style={styles.brandTagline}>Her şey{"\n"}Daha Kolay</Text>
                         </Text>
                     </View>
 
                     <View style={[
                         styles.loginCard,
-                        { paddingBottom: Platform.OS === 'ios' ? insets.bottom + 20 : 30 }
+                        { paddingBottom: Platform.OS === 'ios' ? insets.bottom + 50 : 60 }
                     ]}>
                         <View style={styles.cardHeader}>
                             <Text style={styles.cardHeaderText}>Zaten Leapit üyesi misiniz?</Text>
@@ -366,7 +390,7 @@ const SignupPage = () => {
                         </Pressable>
                     </View>
                 </View>
-            </KeyboardAvoidingView>
+            </View>
 
 
             {/* BottomSheet Modal */}
@@ -391,7 +415,6 @@ const SignupPage = () => {
                     </Pressable>
                 </Animated.View>
             </Modal>
-        </SafeAreaView>
         </View>
     );
 };
@@ -399,17 +422,17 @@ const SignupPage = () => {
 const getStyles = (colors) => StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: 'transparent' },
     container: { flex: 1 },
-    content: { flex: 1, justifyContent: 'space-between' },
+    content: { flex: 1, justifyContent: 'flex-end' },
     topSection: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
         zIndex: 1
     },
-    imageContainer: { position: 'relative', height: 150, width: '100%', marginTop: 50 },
+    imageContainer: { position: 'relative', height: 150, width: '100%', marginTop: 30 },
     circleImageWrapper: { position: 'absolute', borderRadius: 100, overflow: 'hidden' },
     circleImage: { width: '100%', height: '100%', resizeMode: 'cover' },
-    brandName: { color: colors.primary, fontSize: 28, fontWeight: 'bold', marginTop: 150, textAlign: 'center' },
+    brandName: { color: colors.primary, fontSize: 28, fontWeight: 'bold', marginTop: 110, textAlign: 'center' },
     brandTagline: { color: colors.textMain, fontSize: 26, fontWeight: 'bold' },
     loginCard: {
         backgroundColor: colors.cardBackground,
@@ -428,7 +451,7 @@ const getStyles = (colors) => StyleSheet.create({
     cardHeaderText: { fontSize: 15, color: colors.textSub },
     cardHeaderLink: { fontSize: 16, color: colors.primary, fontWeight: 'bold' },
     inputContainer: {
-        flexDirection: 'row', alignItems: 'center', backgroundColor: colors.border,
+        flexDirection: 'row', alignItems: 'center', backgroundColor: colors.mode === 'dark' ? '#13151C' : colors.border,
         borderWidth: 1, borderColor: colors.border, borderRadius: 12, height: 50, paddingHorizontal: 15, marginBottom: 15
     },
     inputIcon: { width: 24, height: 24, marginRight: 10 },

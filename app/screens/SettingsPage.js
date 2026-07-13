@@ -125,12 +125,10 @@ const SettingsPage = () => {
     setRefreshing(true);
     fetchUser().then(() => setRefreshing(false));
   }, [fetchUser]);
-
   const handleLogout = async () => {
     setShowLogoutModal(false);
+    await AsyncStorage.multiRemove(["userToken", "userId", "userCredentials", "rememberMe", "isBiometricEnabled"]);
     dispatch(logoutUser());
-    await AsyncStorage.removeItem("userToken");
-    await AsyncStorage.removeItem("userId");
     navigation.replace("Login");
   };
 
@@ -150,10 +148,9 @@ const SettingsPage = () => {
             setIsDeleting(true);
             try {
               await deleteUserData(userId);
+              await AsyncStorage.multiRemove(["userToken", "userId", "userCredentials", "rememberMe", "isBiometricEnabled"]);
               dispatch(logoutUser());
-              await AsyncStorage.removeItem("userToken");
-              await AsyncStorage.removeItem("userId");
-              navigation.replace("Register"); // Or Login, depending on desired flow
+              navigation.replace("Login");
             } catch (error) {
               console.error("Hesap silinirken hata:", error);
               Alert.alert(
@@ -166,7 +163,7 @@ const SettingsPage = () => {
           },
         },
       ],
-      { cancelable: true },
+      { cancelable: true }
     );
   };
 

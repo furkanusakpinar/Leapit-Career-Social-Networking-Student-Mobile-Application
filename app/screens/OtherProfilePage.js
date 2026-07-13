@@ -38,7 +38,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { getCompanyLogoUri } from '../utils/getCompanyLogoUri';
 import { getSchoolLogoUri } from '../utils/getSchoolLogoUri';
 import axios from 'axios';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import moment from 'moment';
 import { fetchReadmeFromGithub } from '../utils/github';
 import Animated, {
@@ -69,6 +69,14 @@ const formatTimeAgo = (timestamp) => {
   if (interval > 1 && interval < 24) return Math.floor(interval) + ' saat önce';
   if (interval >= 24) return Math.floor(interval / 24) + ' gün önce';
   return 'Yakın zamanda';
+};
+
+const formatCount = (num) => {
+  if (!num) return '0';
+  if (num >= 1000000000) return (num / 1000000000).toFixed(1).replace(/\.0$/, '') + ' Mr';
+  if (num >= 1000000) return (num / 1000000).toFixed(1).replace(/\.0$/, '') + ' M';
+  if (num >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + ' B';
+  return String(num);
 };
 
 const buildReadmeHtml = (content, isDark, colors) => {
@@ -362,6 +370,7 @@ export default function OtherProfilePage() {
   const [expandedPosts, setExpandedPosts] = useState({});
   const [optionsItem, setOptionsItem] = useState(null);
   const [menuAnchorY, setMenuAnchorY] = useState(0);
+  const [contactMenuVisible, setContactMenuVisible] = useState(false);
   const scrollY = useSharedValue(0);
 
   const themeMode = useSelector(state => state.theme?.mode || 'dark');
@@ -520,7 +529,27 @@ export default function OtherProfilePage() {
         data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       } else if (selectedTab === 'Postlar') {
         const snapshot = await getDocs(query(collection(db, 'Posts'), where('userId', '==', profileUserId)));
-        data = await Promise.all(snapshot.docs.map(async d => {
+        
+        let isFollowing = false;
+        if (currentUserId && currentUserId !== profileUserId) {
+          const followSnap = await getDoc(doc(db, 'Users', currentUserId, 'following', profileUserId));
+          isFollowing = followSnap.exists();
+        }
+
+        const filteredDocs = snapshot.docs.filter(d => {
+          const postData = d.data();
+          const isAuthor = postData.userId === currentUserId;
+          const visibility = postData.visibility || 'everyone';
+
+          if (visibility === 'only_me') {
+            return isAuthor;
+          } else if (visibility === 'friends') {
+            return isAuthor || isFollowing;
+          }
+          return true;
+        });
+
+        data = await Promise.all(filteredDocs.map(async d => {
           const postData = d.data();
           return {
             id: d.id,
@@ -881,30 +910,48 @@ export default function OtherProfilePage() {
             >
               <Text style={styles.nameText} numberOfLines={1}>{userData.fullName || 'İsimsiz'}</Text>
             </BlurView>
-            <Text style={styles.jobText} numberOfLines={1}>{userData.job || userData.profession || 'Meslek yok'}</Text>
-            <View style={styles.infoRow}>
-              {schoolLogoUri ? (
-                <View style={styles.logoContainer}>
-                  <Image source={{ uri: schoolLogoUri }} style={styles.miniLogo} resizeMode="contain" />
+            <Text style={styles.jobText} numberOfLines={1}>{userData.profession || 'Meslek yok'}</Text>
+            {!!userData.userLocation && (
+              <View style={[styles.locationRow, { justifyContent: 'space-between' }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                  <MaterialCommunityIcons name="map-marker-outline" size={13} color={colors.textSub} style={{ marginRight: 3 }} />
+                  <Text style={styles.infoSubText} numberOfLines={1}>{userData.userLocation}</Text>
                 </View>
-              ) : null}
-              <Text style={styles.infoSubText} numberOfLines={1}>{userData.school || 'Okul Belirtilmedi'}</Text>
-            </View>
+                {(!!userData.githubLink || !!userData.instagramLink) && (
+                  <TouchableOpacity
+                    onPress={() => setContactMenuVisible(v => !v)}
+                    style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 8, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' }}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialCommunityIcons name="link-variant" size={12} color={colors.textSub} style={{ marginRight: 3 }} />
+                    <Text style={{ color: colors.textSub, fontSize: 10, fontWeight: '600' }}>İletişim</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
           </View>
         </View>
 
         <View style={styles.statsContainer}>
           <View style={styles.statsLeft}>
             <View style={styles.statItem}>
-              <Text style={[styles.statValue, { textAlign: followersCount >= 100 ? 'left' : 'center' }]}>{followersCount}</Text>
-              <Text style={[styles.statLabel, { textAlign: followersCount >= 100 ? 'left' : 'center' }]}>Takipçi</Text>
+              <Text style={styles.statValue}>{formatCount(followersCount)}</Text>
+              <Text style={styles.statLabel}>Takipçi</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={[styles.statValue, { textAlign: followingCount >= 100 ? 'left' : 'center' }]}>{followingCount}</Text>
-              <Text style={[styles.statLabel, { textAlign: followingCount >= 100 ? 'left' : 'center' }]}>Takip</Text>
+              <Text style={styles.statValue}>{formatCount(followingCount)}</Text>
+              <Text style={styles.statLabel}>Takip</Text>
             </View>
           </View>
           <View style={styles.companyInfo}>
+            {schoolLogoUri ? (
+              <View style={styles.logoContainer}>
+                <Image source={{ uri: schoolLogoUri }} style={styles.miniLogo} resizeMode="contain" />
+              </View>
+            ) : null}
+            {!!userData.school && (
+              <Text style={[styles.infoSubText, { marginRight: 10 }]} numberOfLines={1}>{userData.school}</Text>
+            )}
             {companyLogoUri ? (
               <View style={styles.logoContainer}>
                 <Image source={{ uri: companyLogoUri }} style={styles.miniLogo} resizeMode="contain" />
@@ -913,6 +960,55 @@ export default function OtherProfilePage() {
             <Text style={styles.infoSubText} numberOfLines={1}>{userData.company || 'Şirket yok'}</Text>
           </View>
         </View>
+
+        {/* İletişim Bilgileri Popup */}
+        {contactMenuVisible && (!!userData.githubLink || !!userData.instagramLink) && (
+          <Pressable
+            style={{ ...StyleSheet.absoluteFillObject, zIndex: 99 }}
+            onPress={() => setContactMenuVisible(false)}
+          >
+            <View
+              style={{
+                position: 'absolute',
+                top: 135,
+                right: 20,
+                backgroundColor: colors.cardBackground,
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: colors.border,
+                paddingVertical: 6,
+                minWidth: 180,
+                zIndex: 100,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.18,
+                shadowRadius: 8,
+                elevation: 8,
+              }}
+            >
+              {!!userData.githubLink && (
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: userData.instagramLink ? 1 : 0, borderBottomColor: colors.border }}
+                  onPress={() => { setContactMenuVisible(false); Linking.openURL(userData.githubLink); }}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="logo-github" size={20} color={colors.textMain} style={{ marginRight: 12 }} />
+                  <Text style={{ color: colors.textMain, fontSize: 14, fontWeight: '600' }}>GitHub</Text>
+                </TouchableOpacity>
+              )}
+              {!!userData.instagramLink && (
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 }}
+                  onPress={() => { setContactMenuVisible(false); Linking.openURL(userData.instagramLink); }}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="logo-instagram" size={20} color="#E1306C" style={{ marginRight: 12 }} />
+                  <Text style={{ color: colors.textMain, fontSize: 14, fontWeight: '600' }}>Instagram</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </Pressable>
+        )}
 
         <View style={styles.divider} />
 
@@ -1248,19 +1344,20 @@ const getStyles = (colors, isDark) => StyleSheet.create({
   profileSection: { flexDirection: 'row', paddingHorizontal: 20, alignItems: 'center', marginBottom: 20, width: '100%', marginTop: -36 },
   avatarWrapper: { width: 90, height: 90, borderRadius: 15, overflow: 'hidden', backgroundColor: colors.border, borderWidth: 3, borderColor: colors.background },
   avatar: { width: '100%', height: '100%', resizeMode: 'cover' },
-  nameContainer: { flex: 1, marginLeft: 15, justifyContent: 'center' },
-  nameBlur: { alignSelf: 'flex-start', borderRadius: 8, overflow: 'hidden', paddingHorizontal: 8, paddingVertical: 3, marginBottom: 2 },
+  nameContainer: { flex: 1, marginLeft: 15, justifyContent: 'center', marginTop: -10 },
+  nameBlur: { alignSelf: 'flex-start', borderRadius: 8, overflow: 'hidden', paddingHorizontal: 8, paddingVertical: 3, marginBottom: 5 },
   nameText: { color: colors.textMain, fontSize: 20, fontWeight: 'bold' },
   jobText: { color: colors.textSub, fontSize: 14, marginVertical: 2 },
 
   statsContainer: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, alignItems: 'center' },
   statsLeft: { flexDirection: 'row' },
-  statItem: { marginRight: 25 },
-  statValue: { color: colors.textMain, fontSize: 18, fontWeight: 'bold' },
-  statLabel: { color: colors.textSub, fontSize: 12 },
+  statItem: { marginRight: 25, alignItems: 'center' },
+  statValue: { color: colors.textMain, fontSize: 18, fontWeight: 'bold', textAlign: 'center' },
+  statLabel: { color: colors.textSub, fontSize: 12, textAlign: 'center' },
   companyInfo: { flexDirection: 'row', alignItems: 'center', flex: 1, justifyContent: 'flex-end' },
 
   infoRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+  locationRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
   logoContainer: {
     width: 26,
     height: 26,
@@ -1278,10 +1375,10 @@ const getStyles = (colors, isDark) => StyleSheet.create({
   bioText: { color: colors.textMain, fontSize: 14, lineHeight: 22 },
   divider: { height: 1, backgroundColor: colors.border, marginHorizontal: 20, marginTop: 15, marginBottom: 5 },
 
-  tabBar: { flexDirection: 'row', marginTop: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
-  tabItem: { flex: 1, alignItems: 'center', paddingVertical: 15 },
-  activeTab: { borderBottomWidth: 2, borderBottomColor: colors.textMain },
-  tabText: { color: colors.textSub, fontWeight: 'bold' },
+  tabBar: { flexDirection: 'row', marginTop: 10, borderBottomWidth: 1, borderBottomColor: colors.border, justifyContent: 'center', alignItems: 'center' },
+  tabItem: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 15, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  activeTab: { borderBottomColor: colors.textMain },
+  tabText: { color: colors.textSub, fontWeight: 'bold', textAlign: 'center' },
   activeTabText: { color: colors.textMain },
 
   card: { backgroundColor: colors.cardBackground, padding: 15, borderRadius: 20, marginBottom: 15, borderWidth: 1, borderColor: colors.border },

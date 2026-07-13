@@ -37,7 +37,12 @@ export const userSlice = createSlice({
       state.publicVisibility = false;
       state.profileStep = null;
     },
-    logoutUser: () => initialState,
+    logoutUser: (state) => {
+      return {
+        ...initialState,
+        isLoading: false,
+      };
+    },
   },
 });
 
