@@ -22,6 +22,7 @@ import { db } from '../../firebaseConfig';
 import { lightTheme, darkTheme } from '../theme/colors';
 import VideoPlayer from '../components/VideoPlayer';
 import { uploadToCloudinary } from '../utils/cloudinary';
+import VisibilityMenu, { VISIBILITY_OPTIONS } from '../components/VisibilityMenu';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const { width } = Dimensions.get('window');
@@ -91,7 +92,8 @@ export function BlogPage() {
 
   
   const [currentMedia, setCurrentMedia] = useState({ uri: null, type: null });
-  const [postVisibility, setPostVisibility] = useState('global'); 
+  const [postVisibility, setPostVisibility] = useState('everyone'); 
+  const [visibilityMenuVisible, setVisibilityMenuVisible] = useState(false);
 
   
   useEffect(() => {
@@ -110,7 +112,7 @@ export function BlogPage() {
     if (!prePostId) {
       
       setCurrentMedia({ uri: null, type: null });
-      setPostVisibility('global');
+      setPostVisibility('everyone');
       return;
     }
 
@@ -120,11 +122,11 @@ export function BlogPage() {
         const data = docSnap.data();
         setCurrentMedia({ uri: data.mediaUri, type: data.mediaType });
         
-        setPostVisibility(data.visibility || 'global');
+        setPostVisibility(data.visibility || 'everyone');
       } else {
         
         setCurrentMedia({ uri: null, type: null });
-        setPostVisibility('global');
+        setPostVisibility('everyone');
         Toast.show({
           type: 'info',
           text1: 'Bilgi',
@@ -154,9 +156,9 @@ export function BlogPage() {
     }
     if (!newBlogTitle.trim()) {
       Toast.show({
-        type: 'info',
-        text1: 'Uyarı',
-        text2: 'Lütfen başlık ekleyin.',
+        type: 'error',
+        text1: 'Başlık Zorunlu',
+        text2: 'Lütfen blog başlığı ekleyin.',
       });
       return;
     }
@@ -295,10 +297,17 @@ export function BlogPage() {
             <View style={styles.profileInfo}>
               <Text style={styles.userName}>{userData?.fullName || 'İsimsiz'}</Text>
 
-              <Pressable onPress={() => navigation.navigate('BlogPublicPage', { prePostId: prePostId })} style={styles.badge}>
-                <Image source={require('../../assets/images/GlobalGray.png')} style={[styles.badgeIcon, { tintColor: colors.textSub }]} />
-                <Text style={styles.badgeText}>Görünürlük Ayarları</Text>
-                <Image source={require('../../assets/images/GlobalA.png')} style={[styles.badgeIcon, { tintColor: colors.textSub, opacity: 0.5, marginLeft: 4 }]} />
+              <Pressable style={styles.badge} onPress={() => setVisibilityMenuVisible(true)}>
+                <Ionicons
+                  name={(VISIBILITY_OPTIONS.find(o => o.key === postVisibility) || VISIBILITY_OPTIONS[0]).icon}
+                  size={14}
+                  color={colors.textSub}
+                  style={{ marginRight: 4 }}
+                />
+                <Text style={styles.badgeText}>
+                  {VISIBILITY_OPTIONS.find(o => o.key === postVisibility)?.label || 'Herkes görebilir'}
+                </Text>
+                <Ionicons name="chevron-down" size={12} color={colors.textSub} style={{ marginLeft: 2 }} />
               </Pressable>
             </View>
           </View>
@@ -313,6 +322,10 @@ export function BlogPage() {
             </View>
           )}
 
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4, marginTop: 8 }}>
+            <Text style={[styles.textInput, { flex: 0, fontSize: 12, color: colors.textSub, fontWeight: '700', paddingTop: 0, paddingBottom: 0, minHeight: 0 }]}>BAŞLIK</Text>
+            <Text style={{ color: '#E63946', fontSize: 14, fontWeight: 'bold', marginLeft: 3 }}>*</Text>
+          </View>
           <TextInput
             placeholder="Başlık ekle..."
             placeholderTextColor={colors.textSub}
@@ -320,6 +333,7 @@ export function BlogPage() {
             onChangeText={setNewBlogTitle}
             style={[styles.textInput, { minHeight: 40, flex: 0, fontWeight: 'bold' }]}
             multiline
+            maxLength={100}
           />
 
           <TextInput
@@ -329,6 +343,7 @@ export function BlogPage() {
             onChangeText={setNewBlogSubject}
             style={[styles.textInput, { minHeight: null }]}
             multiline
+            maxLength={5000}
           />
 
           <View style={styles.tools}>
@@ -342,6 +357,13 @@ export function BlogPage() {
 
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <VisibilityMenu
+        visible={visibilityMenuVisible}
+        selected={postVisibility}
+        onSelect={(key) => setPostVisibility(key)}
+        onClose={() => setVisibilityMenuVisible(false)}
+      />
 
     </SafeAreaView>
   );

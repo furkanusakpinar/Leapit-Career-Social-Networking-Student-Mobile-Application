@@ -215,6 +215,7 @@ export default function StudentPage() {
                 value={schoolSearchText}
                 onChangeText={t => { setSchoolSearchText(t); setSchoolName(t); setShowSchoolDropdown(true); }}
                 onFocus={() => setShowSchoolDropdown(true)}
+                maxLength={100}
               />
               {showSchoolDropdown && schoolSearchText.length > 0 && (
                 <DropdownMenu 
@@ -236,6 +237,7 @@ export default function StudentPage() {
                   style={styles.input}
                   value={degreeSearchText}
                   onChangeText={t => { setDegreeSearchText(t); setDegree(t); setShowDegreeDropdown(true); }}
+                  maxLength={100}
                 />
                 {showDegreeDropdown && (
                   <DropdownMenu 
@@ -255,6 +257,7 @@ export default function StudentPage() {
                   style={styles.input}
                   value={branchSearchText}
                   onChangeText={t => { setBranchSearchText(t); setBranch(t); setShowBranchDropdown(true); }}
+                  maxLength={100}
                 />
                 {showBranchDropdown && (
                   <DropdownMenu 

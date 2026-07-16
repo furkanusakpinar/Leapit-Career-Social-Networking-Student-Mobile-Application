@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { addDoc, collection, deleteDoc, doc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
+import VisibilityMenu, { VISIBILITY_OPTIONS } from '../components/VisibilityMenu';
 import {
     ActivityIndicator,
     Alert,
@@ -60,7 +61,8 @@ export function ProjectPage() {
     const navigation = useNavigation();
     const route = useRoute();
 
-    const [postVisibility, setPostVisibility] = useState('global');
+    const [postVisibility, setPostVisibility] = useState('everyone');
+    const [visibilityMenuVisible, setVisibilityMenuVisible] = useState(false);
     const { prePostId } = route.params || {};
 
     useEffect(() => {
@@ -76,7 +78,7 @@ export function ProjectPage() {
         const unsub = onSnapshot(doc(db, 'prePosts', prePostId), (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                setPostVisibility(data.visibility || 'global');
+                setPostVisibility(data.visibility || 'everyone');
             }
         });
         return () => unsub();
@@ -186,10 +188,17 @@ export function ProjectPage() {
                         />
                         <View style={styles.profileInfo}>
                             <Text style={styles.userName}>{userData?.fullName || 'İsimsiz'}</Text>
-                            <Pressable onPress={() => navigation.navigate('BlogPublicPage', { prePostId })} style={styles.badge}>
-                                <Image source={require('../../assets/images/GlobalGray.png')} style={[styles.badgeIcon, { tintColor: colors.textSub }]} />
-                                <Text style={styles.badgeText}>Görünürlük Ayarları</Text>
-                                <Image source={require('../../assets/images/GlobalA.png')} style={[styles.badgeIcon, { tintColor: colors.textSub, opacity: 0.5, marginLeft: 4 }]} />
+                            <Pressable style={styles.badge} onPress={() => setVisibilityMenuVisible(true)}>
+                                <Ionicons
+                                    name={(VISIBILITY_OPTIONS.find(o => o.key === postVisibility) || VISIBILITY_OPTIONS[0]).icon}
+                                    size={14}
+                                    color={colors.textSub}
+                                    style={{ marginRight: 4 }}
+                                />
+                                <Text style={styles.badgeText}>
+                                    {VISIBILITY_OPTIONS.find(o => o.key === postVisibility)?.label || 'Herkes görebilir'}
+                                </Text>
+                                <Ionicons name="chevron-down" size={12} color={colors.textSub} style={{ marginLeft: 2 }} />
                             </Pressable>
                         </View>
                     </View>
@@ -222,6 +231,7 @@ export function ProjectPage() {
                             value={projectTitle}
                             onChangeText={setProjectTitle}
                             style={[styles.textInput, { fontWeight: 'bold' }]}
+                            maxLength={200}
                         />
                     </View>
 
@@ -253,6 +263,13 @@ export function ProjectPage() {
 
                 </View>
             </KeyboardAvoidingView>
+
+            <VisibilityMenu
+                visible={visibilityMenuVisible}
+                selected={postVisibility}
+                onSelect={(key) => setPostVisibility(key)}
+                onClose={() => setVisibilityMenuVisible(false)}
+            />
 
         </SafeAreaView>
     );

@@ -490,6 +490,7 @@ export default function SendMessage() {
             maxHeight={100}
             minHeight={40}
             textAlignVertical="center"
+            maxLength={5000}
           />
           <View style={styles.inputRightIcons}>
             {message.trim() ? (

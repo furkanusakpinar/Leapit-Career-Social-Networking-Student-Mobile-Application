@@ -151,6 +151,7 @@ export function JobsPostingPage() {
                     onChangeText={(t) => { setTitle(t); setProfessionSuggestions(getSuggestions(t, allProfessions)); }}
                     onFocus={() => setActiveInput('jobTitle')}
                     style={styles.input}
+                    maxLength={100}
                   />
                 </View>
                 {activeInput === 'jobTitle' && professionSuggestions.length > 0 && (
@@ -168,6 +169,7 @@ export function JobsPostingPage() {
                     onChangeText={(t) => { setCompany(t); setCompanySuggestions(getSuggestions(t, allCompanies)); }}
                     onFocus={() => setActiveInput('company')}
                     style={styles.input}
+                    maxLength={100}
                   />
                 </View>
                 {activeInput === 'company' && companySuggestions.length > 0 && (
@@ -204,6 +206,7 @@ export function JobsPostingPage() {
                   value={location}
                   onChangeText={setLocation}
                   style={styles.input}
+                  maxLength={150}
                 />
               </View>
 

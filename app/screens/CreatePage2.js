@@ -302,6 +302,7 @@ const CreatePage2 = ({ route }) => {
               style={[styles.input, styles.locationInput]}
               value={userLocation}
               onChangeText={setUserLocation}
+              maxLength={100}
             />
 
             <View style={styles.connectionSection}>

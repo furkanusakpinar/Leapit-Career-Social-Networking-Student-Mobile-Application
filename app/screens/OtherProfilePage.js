@@ -32,6 +32,8 @@ import {
   where,
   arrayUnion,
   arrayRemove,
+  addDoc,
+  serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -301,7 +303,7 @@ function ProjectSheet({ project, visible, onClose, colors, isDark }) {
         {loading && !readmeContent ? (
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
             <ActivityIndicator size="large" color={colors.primary} />
-            <Text style={{ color: colors.textSub, marginTop: 10, fontSize: 13 }}>GitHub'dan README yükleniyor...</Text>
+            <Text style={{ color: colors.textSub, marginTop: 10, fontSize: 13 }}>GitHub&apos;dan README yükleniyor...</Text>
           </View>
         ) : (
           <WebView
@@ -497,22 +499,16 @@ export default function OtherProfilePage() {
     }
     setConnectionStatusLoading(true);
     try {
-      const response = await axios.get(`${BACKEND_URL}/api/connection-requests`, {
-        params: {
-          senderUserId: currentUserId,
-          receiverUserId: profileUserId,
-        },
-        timeout: 2500
-      });
-
-      if (response.status === 200 && response.data.status === 'pending') {
-        setIsConnectionPending(true);
-      } else {
-        setIsConnectionPending(false);
-      }
-    } catch (error) {
-      console.log('Bağlantı durumu kontrolü atlandı (çevrimdışı/ulaşılamıyor):', error.message);
-      setIsConnectionPending(false); 
+      const q = query(
+        collection(db, 'connectionRequests'),
+        where('senderUserId', '==', currentUserId),
+        where('receiverUserId', '==', profileUserId),
+        where('status', '==', 'pending')
+      );
+      const querySnapshot = await getDocs(q);
+      setIsConnectionPending(!querySnapshot.empty);
+    } catch (_) {
+      setIsConnectionPending(false);
     } finally {
       setConnectionStatusLoading(false);
     }
@@ -523,29 +519,51 @@ export default function OtherProfilePage() {
       let data = [];
       if (selectedTab === 'Blog') {
         const snapshot = await getDocs(collection(db, 'Users', profileUserId, 'blog'));
-        data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        let isFollowingProfile = false;
+        if (currentUserId && currentUserId !== profileUserId) {
+          const followSnap = await getDoc(doc(db, 'Users', currentUserId, 'following', profileUserId));
+          isFollowingProfile = followSnap.exists();
+        }
+        data = snapshot.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .filter(item => {
+            const visibility = item.visibility || 'everyone';
+            if (visibility === 'only_me') return false; // Ziyaretçilere asla gösterme
+            if (visibility === 'friends') return isFollowingProfile;
+            return true;
+          });
       } else if (selectedTab === 'Projeler') {
         const snapshot = await getDocs(collection(db, 'Users', profileUserId, 'projects'));
-        data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        let isFollowingProfile = false;
+        if (currentUserId && currentUserId !== profileUserId) {
+          const followSnap = await getDoc(doc(db, 'Users', currentUserId, 'following', profileUserId));
+          isFollowingProfile = followSnap.exists();
+        }
+        data = snapshot.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .filter(item => {
+            const visibility = item.visibility || 'everyone';
+            if (visibility === 'only_me') return false;
+            if (visibility === 'friends') return isFollowingProfile;
+            return true;
+          });
       } else if (selectedTab === 'Postlar') {
         const snapshot = await getDocs(query(collection(db, 'Posts'), where('userId', '==', profileUserId)));
         
-        let isFollowing = false;
+        let isFollowingProfile = false;
         if (currentUserId && currentUserId !== profileUserId) {
           const followSnap = await getDoc(doc(db, 'Users', currentUserId, 'following', profileUserId));
-          isFollowing = followSnap.exists();
+          isFollowingProfile = followSnap.exists();
         }
 
         const filteredDocs = snapshot.docs.filter(d => {
           const postData = d.data();
-          const isAuthor = postData.userId === currentUserId;
           const visibility = postData.visibility || 'everyone';
 
-          if (visibility === 'only_me') {
-            return isAuthor;
-          } else if (visibility === 'friends') {
-            return isAuthor || isFollowing;
-          }
+          // only_me postlar ziyaretçilere HİÇ gösterilmez
+          if (visibility === 'only_me') return false;
+          // friends postlar sadece takipçilere görünür
+          if (visibility === 'friends') return isFollowingProfile;
           return true;
         });
 
@@ -718,37 +736,24 @@ export default function OtherProfilePage() {
 
     setConnectionActionLoading(true);
     try {
-      const requestData = {
+      await addDoc(collection(db, 'connectionRequests'), {
         senderUserId: currentUserId,
-        senderUserName: currentUserData?.username || currentUserData?.fullName || 'Bilinmiyor',
+        senderUserName: currentUserData?.username || currentUserData?.fullName || 'Anonim',
         senderUserJob: currentUserData?.job || currentUserData?.profession || 'Bilinmiyor',
+        senderProfileImageUrl: currentUserData?.profileImageUrl || null,
         receiverUserId: profileUserId,
-        receiverUserName: userData.username || userData.fullName || 'Bilinmiyor',
+        receiverUserName: userData.fullName || userData.username || 'Anonim',
         receiverUserJob: userData.job || userData.profession || 'Bilinmiyor',
+        receiverProfileImageUrl: userData.profileImageUrl || null,
         status: 'pending',
-        timestamp: new Date().toISOString(),
-      };
+        timestamp: serverTimestamp(),
+      });
 
-      const response = await axios.post(`${BACKEND_URL}/api/connection-requests`, requestData, { timeout: 4000 });
-
-      if (response.status === 200) {
-        ToastAndroid.show(response.data.message || 'Bağlantı isteğiniz başarıyla gönderildi!', ToastAndroid.LONG);
-        setIsConnectionPending(true);
-      } else {
-        ToastAndroid.show(response.data.error || 'Bağlantı isteği gönderilirken bir sorun oluştu.', ToastAndroid.LONG);
-      }
+      ToastAndroid.show('Bağlantı isteğiniz başarıyla gönderildi!', ToastAndroid.LONG);
+      setIsConnectionPending(true);
     } catch (error) {
       console.error('Bağlantı isteği gönderilirken hata oluştu:', error.message);
-      if (error.response) {
-        console.error('Backend Yanıt Verisi:', error.response.data);
-        console.error('Backend Yanıt Durumu:', error.response.status);
-        ToastAndroid.show(error.response.data.error || 'Sunucu bağlantı isteğini işlerken bir sorun oluştu.', ToastAndroid.LONG);
-      } else if (error.request) {
-        console.error('Backend\'den yanıt alınamadı:', error.request);
-        ToastAndroid.show('Sunucuya ulaşılamıyor. Lütfen internet bağlantınızı kontrol edin.', ToastAndroid.LONG);
-      } else {
-        ToastAndroid.show('Bağlantı isteği oluşturulurken bir hata oluştu: ' + error.message, ToastAndroid.LONG);
-      }
+      ToastAndroid.show('Bağlantı isteği oluşturulurken bir hata oluştu: ' + error.message, ToastAndroid.LONG);
     } finally {
       setConnectionActionLoading(false);
     }
@@ -761,29 +766,28 @@ export default function OtherProfilePage() {
     }
     setConnectionActionLoading(true);
     try {
-      const response = await axios.delete(`${BACKEND_URL}/api/connection-requests`, {
-        data: { 
-          senderUserId: currentUserId,
-          receiverUserId: profileUserId,
-        },
-        timeout: 4000
-      });
+      const q = query(
+        collection(db, 'connectionRequests'),
+        where('senderUserId', '==', currentUserId),
+        where('receiverUserId', '==', profileUserId),
+        where('status', '==', 'pending')
+      );
+      const querySnapshot = await getDocs(q);
 
-      if (response.status === 200) {
-        ToastAndroid.show(response.data.message || 'Bağlantı isteği başarıyla geri çekildi.', ToastAndroid.LONG);
+      if (!querySnapshot.empty) {
+        for (const docSnap of querySnapshot.docs) {
+          await updateDoc(doc(db, 'connectionRequests', docSnap.id), {
+            status: 'canceled'
+          });
+        }
+        ToastAndroid.show('Bağlantı isteği başarıyla geri çekildi.', ToastAndroid.LONG);
         setIsConnectionPending(false); 
       } else {
-        ToastAndroid.show(response.data.error || 'Bağlantı isteği geri çekilirken bir sorun oluştu.', ToastAndroid.LONG);
+        ToastAndroid.show('İptal edilecek bekleyen bir bağlantı isteği bulunamadı.', ToastAndroid.LONG);
       }
     } catch (error) {
       console.error('Bağlantı isteği geri çekilirken hata oluştu:', error.message);
-      if (error.response) {
-        ToastAndroid.show(error.response.data.error || 'Sunucu bağlantı isteğini geri çekerken bir sorun oluştu.', ToastAndroid.LONG);
-      } else if (error.request) {
-        ToastAndroid.show('Sunucuya ulaşılamıyor. Lütfen internet bağlantınızı kontrol edin.', ToastAndroid.LONG);
-      } else {
-        ToastAndroid.show('Bağlantı isteği geri çekilirken bir hata oluştu: ' + error.message, ToastAndroid.LONG);
-      }
+      ToastAndroid.show('Bağlantı isteği geri çekilirken bir hata oluştu: ' + error.message, ToastAndroid.LONG);
     } finally {
       setConnectionActionLoading(false);
     }

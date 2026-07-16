@@ -185,6 +185,7 @@ const CreateProfileScreen = ({ route }) => {
                             value={profession}
                             onChangeText={(t) => { setProfession(t); setProfessionSuggestions(getSuggestions(t, professions)); }}
                             onFocus={() => setActiveInput('profession')}
+                            maxLength={100}
                         />
                         {activeInput === 'profession' && professionSuggestions.length > 0 && (
                             <SuggestionList data={professionSuggestions} onPress={(v) => handleSuggestionPress(setProfession, setProfessionSuggestions, v)} />
@@ -200,6 +201,7 @@ const CreateProfileScreen = ({ route }) => {
                             value={employmentType}
                             onChangeText={(t) => { setEmploymentType(t); setEmploymentTypeSuggestions(getSuggestions(t, employmentTypes)); }}
                             onFocus={() => setActiveInput('employmentType')}
+                            maxLength={100}
                         />
                         {activeInput === 'employmentType' && employmentTypeSuggestions.length > 0 && (
                             <SuggestionList data={employmentTypeSuggestions} onPress={(v) => handleSuggestionPress(setEmploymentType, setEmploymentTypeSuggestions, v)} />
@@ -215,6 +217,7 @@ const CreateProfileScreen = ({ route }) => {
                             value={company}
                             onChangeText={(t) => { setCompany(t); setCompanySuggestions(getSuggestions(t, sampleCompanies)); }}
                             onFocus={() => setActiveInput('company')}
+                            maxLength={100}
                         />
                         {activeInput === 'company' && companySuggestions.length > 0 && (
                             <SuggestionList data={companySuggestions} onPress={(v) => handleSuggestionPress(setCompany, setCompanySuggestions, v)} />
@@ -230,6 +233,7 @@ const CreateProfileScreen = ({ route }) => {
                             value={school}
                             onChangeText={(t) => { setSchool(t); setSchoolSuggestions(getSuggestions(t, schools)); }}
                             onFocus={() => setActiveInput('school')}
+                            maxLength={100}
                         />
                         {activeInput === 'school' && schoolSuggestions.length > 0 && (
                             <SuggestionList isTop={true} data={schoolSuggestions} onPress={(v) => handleSuggestionPress(setSchool, setSchoolSuggestions, v)} />

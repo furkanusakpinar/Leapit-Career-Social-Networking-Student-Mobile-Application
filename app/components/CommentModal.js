@@ -264,6 +264,7 @@ const CommentModal = ({ visible, onClose, postId, currentUserId }) => {
                                     value={commentText}
                                     onChangeText={setCommentText}
                                     multiline
+                                    maxLength={5000}
                                 />
                                 <Pressable
                                     style={[styles.sendBtn, !commentText.trim() && { opacity: 0.5 }]}

@@ -173,6 +173,7 @@ export function JobsPost3() {
                   onChangeText={setAdvertiser}
                   keyboardType={seletion === 'email' ? 'email-address' : 'url'}
                   autoCapitalize="none"
+                  maxLength={200}
                 />
               </View>
             </View>

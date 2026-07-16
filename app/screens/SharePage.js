@@ -214,6 +214,7 @@ export function SharePage() {
               onChangeText={setNewPost}
               style={styles.textInput}
               multiline
+              maxLength={5000}
             />
 
             <View style={styles.tools}>

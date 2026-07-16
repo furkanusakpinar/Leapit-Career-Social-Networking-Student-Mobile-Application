@@ -45,6 +45,7 @@ import CommentModal from '../components/CommentModal';
 import PostOptionsMenu from '../components/PostOptionsMenu';
 import VideoPlayer from '../components/VideoPlayer';
 import { lightTheme, darkTheme } from '../theme/colors';
+import { Ionicons } from '@expo/vector-icons';
 
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -337,14 +338,12 @@ const HomePage = () => {
         // Görünürlük Filtresi
         const isAuthor = data.userId === userId;
         const visibility = data.visibility || 'everyone';
-        let canSee = true;
-        if (visibility === 'only_me') {
-          canSee = isAuthor;
-        } else if (visibility === 'friends') {
-          canSee = isAuthor || followingIds.has(data.userId);
-        }
 
-        if (!canSee) return null;
+        // only_me postlar home'da HİÇ gösterilmez (kendi post'u olsa bile)
+        if (visibility === 'only_me') return null;
+
+        // friends postlar sadece takip edilenlere gösterilir
+        if (visibility === 'friends' && !isAuthor && !followingIds.has(data.userId)) return null;
 
         let profileImageUrl = null, userName = 'Bilinmeyen Kullanıcı', detailsArr = [];
         try {
@@ -418,7 +417,15 @@ const HomePage = () => {
                 <View style={styles.headerTextContainer}>
                   <Text style={styles.cardName}>{post.userName}</Text>
                   {post.details?.length > 0 && <Text style={styles.followerCountText}>{truncateString(post.details, 50)}</Text>}
-                  <Text style={styles.cardTime}>{moment(post.createdAt?.seconds * 1000).fromNow()} • 🌎</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+                    <Text style={styles.cardTime}>{moment(post.createdAt?.seconds * 1000).fromNow()}</Text>
+                    {post.visibility === 'friends' ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 5 }}>
+                        <Text style={styles.cardTime}> • </Text>
+                        <Ionicons name="people" size={12} color={colors.textSub} />
+                      </View>
+                    ) : null}
+                  </View>
                 </View>
 
                 <Pressable style={styles.optionsContainer} onPress={(event) => onOptionsPress(post, event.nativeEvent.pageY)}>
