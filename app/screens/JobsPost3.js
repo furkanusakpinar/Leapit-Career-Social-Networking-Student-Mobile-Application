@@ -2,6 +2,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { addDoc, collection, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import React, { useState } from 'react';
+import Toast from 'react-native-toast-message';
 import {
   Alert,
   Image,
@@ -12,7 +13,6 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  ToastAndroid,
   TouchableWithoutFeedback,
   View
 } from 'react-native';
@@ -109,7 +109,7 @@ export function JobsPost3() {
       }
 
       if (Platform.OS === 'android') {
-        ToastAndroid.show("İlan onay için gönderildi.", ToastAndroid.SHORT);
+        Toast.show({ type: 'success', text1: "İlan onay için gönderildi." });
       } else {
         Alert.alert("Başarılı", "İlanınız onaylandıktan sonra yayına alınacaktır.");
       }
@@ -216,14 +216,14 @@ const getStyles = (colors) => StyleSheet.create({
   },
   inputWrapper: { width: '100%' },
   input: {
-    backgroundColor: colors.border,
+    backgroundColor: colors.mode === 'dark' ? '#13151C' : colors.border,
     color: colors.textMain,
     borderRadius: 12,
-    padding: 15,
+    paddingHorizontal: 15,
     fontSize: 16,
     borderWidth: 1,
     borderColor: colors.border,
-    height: 55,
+    height: 50,
   },
   publishBtn: { backgroundColor: colors.primary, paddingVertical: 16, borderRadius: 15, alignItems: 'center', marginBottom: 20 },
   publishText: { color: 'white', fontWeight: 'bold', fontSize: 16 },

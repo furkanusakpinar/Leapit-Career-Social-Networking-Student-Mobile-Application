@@ -9,13 +9,13 @@ import {
   Platform,
   PixelRatio,
   ActivityIndicator,
-  ToastAndroid,
   Image,
   Pressable,
   Animated,
   RefreshControl,
   ScrollView,
 } from 'react-native';
+import Toast from 'react-native-toast-message';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
@@ -247,9 +247,7 @@ export default function Social() {
       setRefreshing(false);
     }, (error) => {
       console.error("Error fetching conversations: ", error);
-      if (Platform.OS === 'android') {
-        ToastAndroid.show("Sohbetler yüklenirken bir hata oluştu.", ToastAndroid.LONG);
-      }
+      Toast.show({ type: 'error', text1: 'Sohbetler yüklenirken bir hata oluştu.' });
       setLoading(false);
       setRefreshing(false);
     });
@@ -273,9 +271,7 @@ export default function Social() {
       setConnectionCount(ids.size); 
     } catch (error) {
       console.error("Error fetching sent connection requests: ", error);
-      if (Platform.OS === 'android') {
-        ToastAndroid.show("Gönderilen istekler çekilemedi.", ToastAndroid.LONG);
-      }
+      Toast.show({ type: 'error', text1: 'Gönderilen istekler çekilemedi.' });
     }
   }, [userId]);
 
@@ -336,9 +332,7 @@ export default function Social() {
 
     } catch (error) {
       console.error("Error fetching connection suggestions: ", error);
-      if (Platform.OS === 'android') {
-        ToastAndroid.show("Bağlantı önerileri yüklenirken bir sorun oluştu.", ToastAndroid.LONG);
-      }
+      Toast.show({ type: 'error', text1: 'Bağlantı önerileri yüklenirken bir sorun oluştu.' });
     } finally {
       setIsLoadingConnections(false); 
       setRefreshing(false); 
@@ -363,9 +357,7 @@ export default function Social() {
         }
       } catch (error) {
         console.error("Error fetching current user data: ", error);
-        if (Platform.OS === 'android') {
-          ToastAndroid.show("Profil bilgileri çekilirken hata oluştu.", ToastAndroid.LONG);
-        }
+        Toast.show({ type: 'error', text1: 'Profil bilgileri çekilirken hata oluştu.' });
       } finally {
         setIsCurrentUserLoading(false);
       }
@@ -436,18 +428,14 @@ export default function Social() {
       });
     } catch (error) {
       console.error("Error handling chat press or updating unread status: ", error);
-      if (Platform.OS === 'android') {
-        ToastAndroid.show("Sohbete başlarken bir hata oluştu.", ToastAndroid.LONG);
-      }
+        Toast.show({ type: 'error', text1: 'Sohbete başlarken bir hata oluştu.' });
     }
   };
 
   
   const cancelConnectionRequest = async (targetUser) => {
     if (!userId || !currentUserData) {
-      if (Platform.OS === 'android') {
-        ToastAndroid.show('Hata: İstek iptal edilirken profil bilgileri eksik.', ToastAndroid.LONG);
-      }
+      Toast.show({ type: 'error', text1: 'Hata: İstek iptal edilirken profil bilgileri eksik.' });
       return;
     }
 
@@ -475,9 +463,7 @@ export default function Social() {
         
         
 
-        if (Platform.OS === 'android') {
-          ToastAndroid.show(`${targetUser.fullName} adlı kullanıcıya gönderilen bağlantı isteği iptal edildi.`, ToastAndroid.LONG);
-        }
+        Toast.show({ type: 'success', text1: `${targetUser.fullName} adlı kullanıcıya gönderilen bağlantı isteği iptal edildi.` });
         setSentConnectionRequestIds(prevIds => {
           const newSet = new Set(prevIds);
           newSet.delete(targetUser.id);
@@ -486,15 +472,11 @@ export default function Social() {
         setConnectionCount(prevCount => Math.max(0, prevCount - 1)); 
 
       } else {
-        if (Platform.OS === 'android') {
-          ToastAndroid.show('İptal edilecek bekleyen bir bağlantı isteği bulunamadı.', ToastAndroid.LONG);
-        }
+          Toast.show({ type: 'info', text1: 'İptal edilecek bekleyen bir bağlantı isteği bulunamadı.' });
       }
     } catch (error) {
       console.error("Error canceling connection request: ", error);
-      if (Platform.OS === 'android') {
-        ToastAndroid.show('Bağlantı isteği iptal edilirken bir hata oluştu.', ToastAndroid.LONG);
-      }
+        Toast.show({ type: 'error', text1: 'Bağlantı isteği iptal edilirken bir hata oluştu.' });
     } finally {
       setSendingStates(prev => ({ ...prev, [targetUser.id]: false })); 
     }
@@ -503,9 +485,7 @@ export default function Social() {
 
   const sendConnectionRequest = async (targetUser) => {
     if (!userId || !currentUserData) {
-      if (Platform.OS === 'android') {
-        ToastAndroid.show('Hata: Bağlantı isteği göndermek için giriş yapmalısınız veya profiliniz eksik.', ToastAndroid.LONG);
-      }
+      Toast.show({ type: 'error', text1: 'Hata: Bağlantı isteği göndermek için giriş yapmalısınız veya profiliniz eksik.' });
       return;
     }
 
@@ -517,9 +497,7 @@ export default function Social() {
 
     
     if (connectionCount >= MAX_CONNECTIONS_TO_SEND) {
-      if (Platform.OS === 'android') {
-        ToastAndroid.show(`Bilgi: Maksimum ${MAX_CONNECTIONS_TO_SEND} bağlantı isteği gönderebilirsiniz.`, ToastAndroid.LONG);
-      }
+        Toast.show({ type: 'info', text1: `Bilgi: Maksimum ${MAX_CONNECTIONS_TO_SEND} bağlantı isteği gönderebilirsiniz.` });
       return;
     }
 
@@ -543,17 +521,13 @@ export default function Social() {
       
       
 
-      if (Platform.OS === 'android') {
-        ToastAndroid.show(`${targetUser.fullName} adlı kullanıcıya bağlantı isteğiniz gönderildi!`, ToastAndroid.LONG);
-      }
+        Toast.show({ type: 'success', text1: `${targetUser.fullName} adlı kullanıcıya bağlantı isteğiniz gönderildi!` });
       setSentConnectionRequestIds(prevIds => new Set(prevIds).add(targetUser.id));
       setConnectionCount(prevCount => prevCount + 1); 
 
     } catch (error) {
       console.error("Error sending connection request: ", error);
-      if (Platform.OS === 'android') {
-        ToastAndroid.show('Bağlantı isteği gönderilirken bir hata oluştu.', ToastAndroid.LONG);
-      }
+        Toast.show({ type: 'error', text1: 'Bağlantı isteği gönderilirken bir hata oluştu.' });
     } finally {
       setSendingStates(prev => ({ ...prev, [targetUser.id]: false })); 
     }

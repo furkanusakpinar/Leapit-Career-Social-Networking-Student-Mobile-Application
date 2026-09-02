@@ -1,18 +1,18 @@
 {
   "expo": {
-    "name": "leapit",
-    "slug": "leapit",
+    "name": "Leapit",
+    "slug": "Leapit",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/LeapitLogo.png",
+    "icon": "./assets/images/LeapitLogo1024.png",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/LeapitLogo.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/images/LeapitLogo1024.png",
+        "backgroundColor": "#161622"
       },
       "edgeToEdgeEnabled": false,
       "package": "com.leapiet.jobs"
@@ -27,13 +27,24 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/LeapitLogo.png",
+          "backgroundColor": "#101216",
           "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "resizeMode": "contain"
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Leapit fotoğraf çekip mesaj olarak göndermek için kameranıza erişmek istiyor."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Leapit galeriden fotoğraf seçip mesaj olarak göndermek için medya kütüphanenize erişmek istiyor."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

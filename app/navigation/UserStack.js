@@ -20,6 +20,8 @@ import JobsPost2 from '../screens/JobsPost2';
 import JobsPost3 from '../screens/JobsPost3';
 import OtherProfilePage from '../screens/OtherProfilePage';
 import SeeAllUsers from '../screens/SeeAllUsers';
+import ProfileEdit from '../screens/ProfileEdit';
+import DemographicEdit from '../screens/DemographicEdit';
 import NotificationsPage from '../screens/NotificationsPage';
 import BlogPage from '../screens/BlogPage';
 import BlogPublicPage from '../screens/BlogPublicPage';
@@ -70,6 +72,8 @@ const UserStack = () => {
       {}
       <Stack.Screen name="ProfilePage" component={ProfilePage} />
       <Stack.Screen name="SettingPage" component={SettingPage} />
+      <Stack.Screen name="ProfileEdit" component={ProfileEdit} />
+      <Stack.Screen name="DemographicEdit" component={DemographicEdit} />
       <Stack.Screen name="PhotoSharePage" component={PhotoSharePage} />
       <Stack.Screen name="SharePage" component={SharePage} />
       <Stack.Screen name="PublicPage" component={PublicPage} />

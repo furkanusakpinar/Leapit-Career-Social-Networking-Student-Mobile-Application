@@ -3,10 +3,12 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import axios from 'axios';
 import * as ImagePicker from 'expo-image-picker';
-import { collection, doc, getDocs, limit, query, updateDoc, where } from 'firebase/firestore';
+import { addDoc, collection, doc, getDoc, getDocs, limit, query, serverTimestamp, updateDoc, where } from 'firebase/firestore';
 import { useEffect, useMemo, useState } from 'react';
+import Toast from 'react-native-toast-message';
 import {
   ActivityIndicator,
+  Dimensions,
   Image,
   KeyboardAvoidingView, Platform,
   Pressable,
@@ -20,6 +22,7 @@ import { db } from '../../firebaseConfig';
 import { setAuth, setProfileStep } from '../redux/userSlice';
 import CreateProfile2Skeleton from '../skeleton/CreateProfile2Skeleton';
 import { lightTheme, darkTheme } from '../theme/colors';
+import ImageCropModal from '../components/ImageCropModal';
 import { uploadToCloudinary } from '../utils/cloudinary';
 
 const CreatePage2 = ({ route }) => {
@@ -39,7 +42,10 @@ const CreatePage2 = ({ route }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
   const [suggestedUsers, setSuggestedUsers] = useState([]);
-  const [connectedIds, setConnectedIds] = useState(new Set());
+  const [sentConnectionIds, setSentConnectionIds] = useState(new Set());
+  const [sendingIds, setSendingIds] = useState({});
+  const [currentUserData, setCurrentUserData] = useState(null);
+  const [pendingCrop, setPendingCrop] = useState(null);
 
   const canSaveProfile = useMemo(() => {
     return bio.trim() !== '' && userLocation.trim() !== '' && !isLoading;
@@ -77,6 +83,10 @@ const CreatePage2 = ({ route }) => {
             users.push({ id: doc.id, ...data });
           }
         });
+        const curSnap = await getDoc(doc(db, 'Users', userId));
+        if (curSnap.exists() && isMounted) {
+          setCurrentUserData(curSnap.data());
+        }
         if (isMounted) {
           setSuggestedUsers(users);
           setPageLoading(false);
@@ -102,13 +112,66 @@ const CreatePage2 = ({ route }) => {
     saveDraft();
   }, [bio, userLocation]);
 
-  const handleConnect = (id) => {
-    setConnectedIds(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(id)) newSet.delete(id);
-      else newSet.add(id);
-      return newSet;
-    });
+  const cancelConnectionRequest = async (targetUser) => {
+    setSendingIds(prev => ({ ...prev, [targetUser.id]: true }));
+    try {
+      const q = query(
+        collection(db, 'connectionRequests'),
+        where('senderUserId', '==', userId),
+        where('receiverUserId', '==', targetUser.id),
+        where('status', '==', 'pending')
+      );
+      const querySnapshot = await getDocs(q);
+      if (!querySnapshot.empty) {
+        await updateDoc(doc(db, 'connectionRequests', querySnapshot.docs[0].id), { status: 'canceled' });
+        Toast.show({ type: 'success', text1: `${targetUser.fullName} adlı kullanıcıya gönderilen bağlantı isteği iptal edildi.` });
+        setSentConnectionIds(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(targetUser.id);
+          return newSet;
+        });
+      } else {
+        Toast.show({ type: 'info', text1: 'İptal edilecek bekleyen bir bağlantı isteği bulunamadı.' });
+      }
+    } catch (error) {
+      console.error("Bağlantı isteği iptal edilirken hata:", error);
+      Toast.show({ type: 'error', text1: 'Bağlantı isteği iptal edilirken bir hata oluştu.' });
+    } finally {
+      setSendingIds(prev => ({ ...prev, [targetUser.id]: false }));
+    }
+  };
+
+  const handleConnect = async (targetUser) => {
+    if (!userId) {
+      Toast.show({ type: 'info', text1: 'Bağlantı isteği göndermek için giriş yapmalısınız.' });
+      return;
+    }
+    if (sentConnectionIds.has(targetUser.id)) {
+      await cancelConnectionRequest(targetUser);
+      return;
+    }
+    setSendingIds(prev => ({ ...prev, [targetUser.id]: true }));
+    try {
+      await addDoc(collection(db, 'connectionRequests'), {
+        senderUserId: userId,
+        senderUserName: currentUserData?.fullName || currentUserData?.username || 'Anonim',
+        senderUserJob: currentUserData?.job || currentUserData?.profession || 'Bilinmiyor',
+        senderProfileImageUrl: currentUserData?.profileImageUrl || null,
+        receiverUserId: targetUser.id,
+        receiverUserName: targetUser.fullName || targetUser.username || 'Anonim',
+        receiverUserJob: targetUser.job || targetUser.profession || 'Bilinmiyor',
+        receiverProfileImageUrl: targetUser.profileImageUrl || null,
+        status: 'pending',
+        timestamp: serverTimestamp(),
+      });
+      Toast.show({ type: 'success', text1: `${targetUser.fullName} adlı kullanıcıya bağlantı isteğiniz gönderildi!` });
+      setSentConnectionIds(prev => new Set(prev).add(targetUser.id));
+    } catch (error) {
+      console.error("Bağlantı isteği gönderilirken hata:", error);
+      Toast.show({ type: 'error', text1: 'Bağlantı isteği gönderilirken bir hata oluştu.' });
+    } finally {
+      setSendingIds(prev => ({ ...prev, [targetUser.id]: false }));
+    }
   };
 
   const pickImage = async (type) => {
@@ -117,14 +180,12 @@ const CreatePage2 = ({ route }) => {
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: type === 'banner' ? [16, 6] : [1, 1],
-      quality: 0.7,
+      allowsEditing: false,
+      quality: 1,
     });
 
     if (!result.canceled) {
-      if (type === 'banner') setBannerImageUri(result.assets[0].uri);
-      else setProfileImageUri(result.assets[0].uri);
+      setPendingCrop({ uri: result.assets[0].uri, type });
     }
   };
 
@@ -254,7 +315,7 @@ const CreatePage2 = ({ route }) => {
           <View style={styles.loginCard}>
             {/* Banner */}
             <View style={{ width: '100%', marginBottom: 48, marginTop: 20 }}>
-              <Pressable onPress={() => pickImage('banner')} style={{ width: '100%', height: 110, borderRadius: 14, overflow: 'hidden', backgroundColor: colors.border }}>
+              <Pressable onPress={() => pickImage('banner')} style={{ width: '100%', height: Math.round((Dimensions.get('window').width - 50) * 190 / Dimensions.get('window').width), borderRadius: 14, overflow: 'hidden', backgroundColor: colors.border }}>
                 {bannerImageUri ? (
                   <Image source={{ uri: bannerImageUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                 ) : (
@@ -311,39 +372,68 @@ const CreatePage2 = ({ route }) => {
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 style={styles.userList}
-                contentContainerStyle={{ paddingRight: 25 }}
+                contentContainerStyle={{ paddingLeft: 25, paddingRight: 25 }}
                 nestedScrollEnabled={true}
               >
-                {suggestedUsers.map((item) => (
-                  <View key={item.id} style={styles.userCard}>
-                    <View style={styles.cardHeaderArea}>
-                      <Image
-                        source={item.backProfileImageUrl ? { uri: item.backProfileImageUrl } : { uri: 'https://images.unsplash.com/photo-1557683316-973673baf926?q=80&w=100&auto=format&fit=crop' }}
-                        style={styles.coverImage}
-                      />
-                    </View>
-                    {item.profileImageUrl ? (
-                      <Image source={{ uri: item.profileImageUrl }} style={styles.suggestedUserImage} />
-                    ) : (
-                      <View style={[styles.suggestedUserImage, { justifyContent: 'center', alignItems: 'center', backgroundColor: colors.border }]}>
-                        <MaterialCommunityIcons name="account-circle" size={56} color={colors.textSub} />
+                {suggestedUsers.map((item) => {
+                  const isStudent = !!(item.degree || item.branch);
+                  return (
+                    <View
+                      key={item.id}
+                      style={styles.userCard}
+                    >
+                      <View style={styles.cardHeaderArea}>
+                        <Image
+                          source={item.backProfileImageUrl ? { uri: item.backProfileImageUrl } : { uri: 'https://images.unsplash.com/photo-1557683316-973673baf926?q=80&w=100&auto=format&fit=crop' }}
+                          style={styles.coverImage}
+                        />
                       </View>
-                    )}
-                    <View style={styles.userCardInfo}>
-                      <Text style={styles.userName} numberOfLines={1}>{item.fullName || 'İsim Soyisim'}</Text>
-                      <Text style={styles.userTitle} numberOfLines={1}>{item.jobTitle || 'Üye'}</Text>
+                      <View style={styles.userCardBody}>
+                        <View style={styles.userAvatarWrap}>
+                          {item.profileImageUrl ? (
+                            <Image source={{ uri: item.profileImageUrl }} style={styles.userAvatar} />
+                          ) : (
+                            <View style={[styles.userAvatar, styles.userAvatarPlaceholder]}>
+                              <MaterialCommunityIcons name="account" size={30} color={colors.textSub} />
+                            </View>
+                          )}
+                        </View>
+                        <View style={styles.userCardInfo}>
+                          <Text style={styles.userName} numberOfLines={1}>{item.fullName || 'İsim Soyisim'}</Text>
+                          <Text style={styles.userJob} numberOfLines={1}>
+                            {isStudent
+                              ? (item.branch || item.profession ? `Öğrenci • ${item.branch || item.profession}` : 'Öğrenci')
+                              : (item.profession || 'Üye')}
+                          </Text>
+                          <View style={styles.userDetailRow}>
+                            <MaterialCommunityIcons name="school-outline" size={11} color={colors.textSub} />
+                            <Text style={styles.userDetailText} numberOfLines={1}>{item.school || 'Okul bilgisi yok'}</Text>
+                          </View>
+                          <View style={styles.userDetailRow}>
+                            <MaterialCommunityIcons name="briefcase-outline" size={11} color={colors.textSub} />
+                            <Text style={styles.userDetailText} numberOfLines={1}>
+                              {isStudent ? 'Şirket yok' : (item.company || 'Şirket bilgisi yok')}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
                       <Pressable
-                        style={[styles.connectButton, connectedIds.has(item.id) && styles.connectedButton]}
-                        onPress={() => handleConnect(item.id)}
+                        style={[styles.connectButton, sentConnectionIds.has(item.id) && styles.connectedButton]}
+                        onPress={() => handleConnect(item)}
+                        disabled={!!sendingIds[item.id]}
                       >
-                        <Ionicons name={connectedIds.has(item.id) ? "checkmark" : "person-add"} size={14} color={connectedIds.has(item.id) ? "white" : colors.primary} />
-                        <Text style={[styles.connectButtonText, { color: connectedIds.has(item.id) ? "white" : colors.primary }]}>
-                          {connectedIds.has(item.id) ? 'Bağlanıldı' : 'Bağlan'}
+                        {sendingIds[item.id] ? (
+                          <ActivityIndicator size="small" color="#FFF" />
+                        ) : (
+                          <Ionicons name={sentConnectionIds.has(item.id) ? "checkmark" : "person-add"} size={14} color="#FFF" />
+                        )}
+                        <Text style={styles.connectButtonText}>
+                          {sentConnectionIds.has(item.id) ? 'İstek Gönderildi' : 'Bağlantı kur'}
                         </Text>
                       </Pressable>
                     </View>
-                  </View>
-                ))}
+                  );
+                })}
               </ScrollView>
             </View>
 
@@ -361,6 +451,18 @@ const CreatePage2 = ({ route }) => {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <ImageCropModal
+        visible={!!pendingCrop}
+        imageUri={pendingCrop?.uri}
+        aspect={pendingCrop?.type === 'banner' ? Dimensions.get('window').width / 190 : 1}
+        onCancel={() => setPendingCrop(null)}
+        onConfirm={(uri) => {
+          if (pendingCrop?.type === 'banner') setBannerImageUri(uri);
+          else setProfileImageUri(uri);
+          setPendingCrop(null);
+        }}
+      />
     </View>
   );
 }
@@ -421,25 +523,32 @@ const getStyles = (colors) => StyleSheet.create({
   },
 
   titleText: { color: colors.textSub, marginBottom: 4, fontSize: 12, fontWeight: '600' },
-  input: { backgroundColor: colors.mode === 'dark' ? '#13151C' : colors.border, borderRadius: 10, padding: 10, color: colors.textMain, fontSize: 14, marginBottom: 8 },
+  input: { backgroundColor: colors.mode === 'dark' ? '#13151C' : colors.border, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 15, paddingVertical: 12, color: colors.textMain, fontSize: 16, marginBottom: 12, justifyContent: 'center' },
   bioInput: { height: 80, textAlignVertical: 'top' },
   locationInput: { height: 50 },
   connectionSection: { marginVertical: 8 },
   connectionTitle: { color: colors.textMain, fontSize: 14, fontWeight: '600', marginBottom: 8 },
-  userList: { height: 165 },
-  userCard: { backgroundColor: colors.background, width: 150, height: 160, borderRadius: 12, marginRight: 10, overflow: 'hidden', borderWidth: 1, borderColor: colors.border },
-  cardHeaderArea: { width: '100%', height: 45, backgroundColor: colors.border },
+  userList: { height: 175, marginHorizontal: -25 },
+  userCard: { backgroundColor: colors.cardBackground, width: 200, borderRadius: 14, marginRight: 10, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, paddingBottom: 12 },
+  cardHeaderArea: { width: '100%', height: 52, backgroundColor: colors.border },
   coverImage: { width: '100%', height: '100%', opacity: 0.5 },
-  suggestedUserImage: { width: 60, height: 60, borderRadius: 30, marginTop: -25, alignSelf: 'center', borderWidth: 2, borderColor: colors.border, zIndex: 1 },
-  userCardInfo: { alignItems: 'center', paddingHorizontal: 4, flex: 1, justifyContent: 'space-evenly', paddingBottom: 4 },
-  userName: { color: colors.textMain, fontSize: 12, fontWeight: 'bold' },
-  userTitle: { color: colors.textSub, fontSize: 10 },
+  userCardBody: { flexDirection: 'row', paddingHorizontal: 12, paddingTop: 2 },
+  userAvatarWrap: { marginTop: -22, borderWidth: 3, borderColor: colors.cardBackground, borderRadius: 14, backgroundColor: colors.border, overflow: 'hidden', zIndex: 1, alignSelf: 'flex-start' },
+  userAvatar: { width: 48, height: 48, resizeMode: 'cover', backgroundColor: colors.border },
+  userAvatarPlaceholder: { justifyContent: 'center', alignItems: 'center' },
+  userCardInfo: { flex: 1, marginLeft: 10, marginTop: 8 },
+  userName: { color: colors.textMain, fontSize: 14, fontWeight: 'bold' },
+  userJob: { color: colors.textSub, fontSize: 12, marginTop: 2 },
+  userDetailRow: { flexDirection: 'row', alignItems: 'center', marginTop: 3 },
+  userDetailText: { color: colors.textSub, fontSize: 11, marginLeft: 3, flex: 1 },
   connectButton: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: colors.border,
-    paddingVertical: 5, width: '90%', justifyContent: 'center', borderRadius: 6, gap: 4, borderWidth: 1, borderColor: colors.primary
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.primary, borderRadius: 10, height: 36,
+    marginHorizontal: 12, marginTop: 12, gap: 5,
+    shadowColor: colors.primary, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 5, elevation: 3,
   },
-  connectedButton: { backgroundColor: colors.primary, borderColor: colors.primary },
-  connectButtonText: { fontSize: 10, fontWeight: 'bold' },
+  connectedButton: { backgroundColor: '#00BA7C', shadowColor: '#00BA7C' },
+  connectButtonText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
   button: { backgroundColor: colors.primary, padding: 14, borderRadius: 10, alignItems: 'center', marginTop: 10 },
   buttonText: { color: 'white', fontWeight: 'bold', fontSize: 15 },
   disabledButton: { opacity: 0.5 },

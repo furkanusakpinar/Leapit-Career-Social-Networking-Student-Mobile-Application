@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
+import Toast from 'react-native-toast-message';
 import {
   ActivityIndicator,
   Dimensions,
@@ -13,7 +14,6 @@ import {
   StyleSheet,
   Switch,
   Text, TextInput,
-  ToastAndroid,
   TouchableOpacity,
   View
 } from 'react-native';
@@ -171,11 +171,28 @@ export default function StudentPage() {
 
   const handleSave = async () => {
     if (!schoolName.trim() || !startYear.trim() || !endYear.trim()) {
-      ToastAndroid.show('Lütfen yıldızlı alanları doldurun.', ToastAndroid.SHORT);
+      Toast.show({ type: 'info', text1: 'Lütfen yıldızlı alanları doldurun.' });
       return;
     }
     setIsLoading(true);
-    // Doğrudan Firebase'e yazmıyoruz, yerel taslakta (AsyncStorage) kalıyor.
+    try {
+      if (userId) {
+        const studentData = {
+          school: schoolName,
+          degree,
+          branch,
+          startYear,
+          endYear,
+          isOver16,
+        };
+        if (!isOver16 && birthDay && birthMonth && birthYear) {
+          studentData.birthDate = `${birthDay}-${birthMonth}-${birthYear}`;
+        }
+        await updateDoc(doc(db, 'Users', userId), studentData);
+      }
+    } catch (e) {
+      console.error('Öğrenci bilgileri Firestore kaydedilirken hata:', e);
+    }
     try {
       await AsyncStorage.setItem('step1_completed', JSON.stringify({ completed: true, timestamp: Date.now() }));
     } catch (_) {}
@@ -382,10 +399,11 @@ const getStyles = (colors) => StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 12,
-    padding: 12,
+    paddingHorizontal: 15,
+    height: 50,
+    justifyContent: 'center',
     color: colors.textMain,
-    fontSize: 15,
-    minHeight: 45
+    fontSize: 16
   },
   rowContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8, gap: 10 },
   inputGroupHalf: { flex: 1, position: 'relative' },

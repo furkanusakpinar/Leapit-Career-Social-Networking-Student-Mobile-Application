@@ -34,7 +34,7 @@ import { darkTheme, lightTheme } from "../theme/colors";
 import { deleteUserData } from "../utils/deleteUser";
 
 const settingsOptions = [
-  "Ad, konum ve sektörü düzenle",
+  "Meslek ve eğitim bilgilerini düzenle",
   "Kişisel demografik bilgiler",
 ];
 
@@ -56,7 +56,6 @@ const SettingsPage = () => {
   const styles = getStyles(colors);
 
   const [userData, setUserData] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -64,10 +63,7 @@ const SettingsPage = () => {
   const [savedJobs, setSavedJobs] = useState([]);
 
   const fetchUser = useCallback(async () => {
-    if (!userId) {
-      setLoading(false);
-      return;
-    }
+    if (!userId) return;
     try {
       const docRef = doc(db, "Users", userId);
       const docSnap = await getDoc(docRef);
@@ -78,8 +74,6 @@ const SettingsPage = () => {
       }
     } catch (e) {
       console.error("Kullanıcı verisi çekilirken hata:", e);
-    } finally {
-      setLoading(false);
     }
   }, [userId]);
 
@@ -129,7 +123,6 @@ const SettingsPage = () => {
     setShowLogoutModal(false);
     await AsyncStorage.multiRemove(["userToken", "userId", "userCredentials", "rememberMe", "isBiometricEnabled"]);
     dispatch(logoutUser());
-    navigation.replace("Login");
   };
 
   const handleDeleteAccount = async () => {
@@ -150,7 +143,6 @@ const SettingsPage = () => {
               await deleteUserData(userId);
               await AsyncStorage.multiRemove(["userToken", "userId", "userCredentials", "rememberMe", "isBiometricEnabled"]);
               dispatch(logoutUser());
-              navigation.replace("Login");
             } catch (error) {
               console.error("Hesap silinirken hata:", error);
               Alert.alert(
@@ -167,13 +159,11 @@ const SettingsPage = () => {
     );
   };
 
-  if (loading || isDeleting) {
+  if (isDeleting) {
     return (
       <SafeAreaView style={[styles.container, styles.centerContent]}>
         <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.loadingText}>
-          {isDeleting ? "Hesabınız siliniyor..." : "Yükleniyor..."}
-        </Text>
+        <Text style={styles.loadingText}>Hesabınız siliniyor...</Text>
       </SafeAreaView>
     );
   }
@@ -259,6 +249,10 @@ const SettingsPage = () => {
                       else if (option === "Tema Değiştir")
                         dispatch(toggleTheme());
                       else if (option === "Hesabı Sil") handleDeleteAccount();
+                      else if (option === "Meslek ve eğitim bilgilerini düzenle")
+                        navigation.navigate("ProfileEdit");
+                      else if (option === "Kişisel demografik bilgiler")
+                        navigation.navigate("DemographicEdit");
                     }}
                   >
                     <Text style={styles.optionText}>

@@ -18,7 +18,6 @@ import {
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
-  Animated,
   Dimensions,
   FlatList,
   Image,
@@ -34,9 +33,9 @@ import {
 import { useSelector } from "react-redux";
 import { db } from "../../firebaseConfig";
 import { darkTheme, lightTheme } from "../theme/colors";
+import BottomSheet from "../components/BottomSheet";
 
-const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get("window");
-const SHEET_HEIGHT = SCREEN_HEIGHT * 0.55;
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const formatTime = (date) => {
   if (!date) return "";
@@ -65,50 +64,25 @@ const getNotifMeta = (type) => {
 };
 
 function NotifSheet({ notification, visible, onClose, colors }) {
-  const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
-  const opacity    = useRef(new Animated.Value(0)).current;
-  const [show, setShow] = useState(false);
-
-  useEffect(() => {
-    if (visible) {
-      setShow(true);
-      Animated.parallel([
-        Animated.timing(opacity,    { toValue: 1, duration: 220, useNativeDriver: true }),
-        Animated.timing(translateY, { toValue: 0, duration: 320, useNativeDriver: true }),
-      ]).start();
-    } else {
-      Animated.parallel([
-        Animated.timing(opacity,    { toValue: 0, duration: 200, useNativeDriver: true }),
-        Animated.timing(translateY, { toValue: SHEET_HEIGHT, duration: 280, useNativeDriver: true }),
-      ]).start(() => setShow(false));
-    }
-  }, [visible]);
-
-  if (!show || !notification) return null;
+  if (!notification) return null;
   const meta = getNotifMeta(notification.type);
+  const ss = getSheetStyles(colors);
 
   return (
-    <Modal transparent animationType="none" statusBarTranslucent onRequestClose={onClose}>
-      <Animated.View style={[ss.backdrop, { opacity }]}>
-        <Pressable style={{ flex: 1 }} onPress={onClose} />
-      </Animated.View>
-      <Animated.View style={[ss.sheet, { backgroundColor: colors.cardBackground, transform: [{ translateY }] }]}>
-        <View style={ss.handle} />
-        <View style={ss.sheetTop}>
-          <View style={[ss.iconCircle, { backgroundColor: meta.color + "20" }]}>
-            <MaterialCommunityIcons name={meta.icon} size={34} color={meta.color} />
-          </View>
-          <Text style={[ss.sheetTitle, { color: colors.textMain }]}>{meta.title}</Text>
-          <Text style={[ss.sheetTime,  { color: colors.textSub  }]}>{notification.timeStr}</Text>
+    <BottomSheet visible={visible} onClose={onClose} title={meta.title}>
+      <View style={ss.sheetTop}>
+        <View style={[ss.iconCircle, { backgroundColor: meta.color + "20" }]}>
+          <MaterialCommunityIcons name={meta.icon} size={34} color={meta.color} />
         </View>
-        <View style={[ss.msgBox, { backgroundColor: colors.background, borderColor: colors.border }]}>
-          <Text style={[ss.msgText, { color: colors.textMain }]}>{notification.content}</Text>
-        </View>
-        <TouchableOpacity style={[ss.closeBtn, { backgroundColor: colors.primary }]} onPress={onClose}>
-          <Text style={ss.closeBtnText}>Kapat</Text>
-        </TouchableOpacity>
-      </Animated.View>
-    </Modal>
+        <Text style={[ss.sheetTime, { color: colors.textSub }]}>{notification.timeStr}</Text>
+      </View>
+      <View style={[ss.msgBox, { backgroundColor: colors.background, borderColor: colors.border }]}>
+        <Text style={[ss.msgText, { color: colors.textMain }]}>{notification.content}</Text>
+      </View>
+      <TouchableOpacity style={[ss.closeBtn, { backgroundColor: colors.primary }]} onPress={onClose}>
+        <Text style={ss.closeBtnText}>Kapat</Text>
+      </TouchableOpacity>
+    </BottomSheet>
   );
 }
 
@@ -586,17 +560,13 @@ const pcStyles = StyleSheet.create({
   rejectBtn: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", borderWidth: 1.5, backgroundColor: "transparent" },
 });
 
-const ss = StyleSheet.create({
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.5)" },
-  sheet: { position: "absolute", bottom: 0, left: 0, right: 0, height: SHEET_HEIGHT, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingBottom: 30 },
-  handle: { width: 40, height: 4, borderRadius: 2, backgroundColor: "#ccc", alignSelf: "center", marginTop: 10, marginBottom: 20 },
+const getSheetStyles = (colors) => StyleSheet.create({
   sheetTop: { alignItems: "center", marginBottom: 20 },
   iconCircle: { width: 72, height: 72, borderRadius: 36, alignItems: "center", justifyContent: "center", marginBottom: 12 },
-  sheetTitle: { fontSize: 19, fontWeight: "700", textAlign: "center", marginBottom: 4 },
   sheetTime:  { fontSize: 13 },
-  msgBox: { borderRadius: 16, padding: 16, borderWidth: 1, marginBottom: 24 },
+  msgBox: { borderRadius: 16, padding: 16, borderWidth: 1, marginBottom: 24, marginHorizontal: 20 },
   msgText: { fontSize: 15, lineHeight: 24 },
-  closeBtn: { borderRadius: 14, paddingVertical: 14, alignItems: "center" },
+  closeBtn: { borderRadius: 14, paddingVertical: 14, alignItems: "center", marginHorizontal: 20, marginBottom: 24 },
   closeBtnText: { color: "white", fontWeight: "700", fontSize: 15 },
 });
 

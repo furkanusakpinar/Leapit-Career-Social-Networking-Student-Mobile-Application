@@ -1,11 +1,12 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, FlatList, StyleSheet, Pressable, ActivityIndicator, Image, Modal, TextInput } from 'react-native';
+import { View, Text, FlatList, StyleSheet, Pressable, ActivityIndicator, Image, TextInput } from 'react-native';
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useSelector } from 'react-redux';
 import { lightTheme, darkTheme } from '../theme/colors';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import BottomSheet from '../components/BottomSheet';
 
 const AdminJobsList = () => {
   const navigation = useNavigation();
@@ -167,24 +168,13 @@ const AdminJobsList = () => {
         />
       )}
 
-      {/* History BottomSheet Modal */}
-      <Modal
-        animationType="slide"
-        transparent={true}
+      {/* History BottomSheet */}
+      <BottomSheet
         visible={showHistory}
-        onRequestClose={() => setShowHistory(false)}
+        onClose={() => setShowHistory(false)}
+        title="İlan Geçmişi"
+        contentStyle={{ height: '85%', paddingHorizontal: 20, paddingTop: 4 }}
       >
-        <View style={styles.modalOverlay}>
-          <Pressable style={styles.modalBackdrop} onPress={() => setShowHistory(false)} />
-          <View style={[styles.bottomSheetContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-            <View style={[styles.dragHandle, { backgroundColor: colors.border }]} />
-            <View style={styles.sheetHeader}>
-              <Text style={[styles.sheetTitle, { color: colors.textMain }]}>İlan Geçmişi</Text>
-              <Pressable onPress={() => setShowHistory(false)} style={styles.closeBtn}>
-                <MaterialCommunityIcons name="close" size={24} color={colors.textSub} />
-              </Pressable>
-            </View>
-
             <View style={[styles.searchWrapper, { backgroundColor: colors.background, borderColor: colors.border }]}>
               <MaterialCommunityIcons name="magnify" size={20} color={colors.textSub} style={styles.searchIcon} />
               <TextInput
@@ -248,9 +238,7 @@ const AdminJobsList = () => {
                 showsVerticalScrollIndicator={false}
               />
             )}
-          </View>
-        </View>
-      </Modal>
+      </BottomSheet>
     </View>
   );
 };
@@ -269,47 +257,7 @@ const styles = StyleSheet.create({
   arrow: { width: 16, height: 16, opacity: 0.3 },
   emptyText: { textAlign: 'center', marginTop: 50 },
 
-  // BottomSheet & History Styles
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  modalBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  bottomSheetContainer: {
-    borderTopLeftRadius: 25,
-    borderTopRightRadius: 25,
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 20,
-    maxHeight: '85%',
-    minHeight: '55%',
-    borderTopWidth: 1,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-  },
-  dragHandle: {
-    width: 40,
-    height: 5,
-    borderRadius: 2.5,
-    alignSelf: 'center',
-    marginBottom: 15,
-  },
-  sheetHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  sheetTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  closeBtn: {
-    padding: 4,
-  },
+  // History Styles
   searchWrapper: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
-import { useNavigation, useIsFocused } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import {
   collection,
   doc,
@@ -33,7 +33,6 @@ const { width } = Dimensions.get('window');
 
 const Social = () => {
   const navigation = useNavigation();
-  const isFocused = useIsFocused();
   const userId = useSelector(state => state.user.userId);
   const [conversations, setConversations] = useState([]);
   const [connectionSuggestions, setConnectionSuggestions] = useState([]);
@@ -73,6 +72,10 @@ const Social = () => {
             jobTitle: data.jobTitle || data.job || data.profession || '',
             profileImageUrl: data.profileImageUrl || null,
             backProfileImageUrl: data.backProfileImageUrl || null,
+            school: data.school || '',
+            company: data.company || '',
+            degree: data.degree || '',
+            branch: data.branch || '',
           });
         }
       });
@@ -103,18 +106,6 @@ const Social = () => {
     const q = query(collection(db, 'Users', userId, 'chats'), orderBy('lastMessageCreatedAt', 'desc'));
 
     unsubscribeRef.current = onSnapshot(q, async (snapshot) => {
-      const unreadDocRefs = [];
-      snapshot.docs.forEach(docSnap => {
-        if (isFocused && docSnap.data().unread === true) {
-          unreadDocRefs.push(docSnap.ref);
-        }
-      });
-
-      if (unreadDocRefs.length > 0) {
-        Promise.all(unreadDocRefs.map(ref => updateDoc(ref, { unread: false })))
-          .catch(err => console.error("Error auto-reading chats:", err));
-      }
-
       const convArr = await Promise.all(snapshot.docs.map(async (docSnap) => {
         const data = docSnap.data();
         let profileImageUrl = data.otherUserProfileImageUrl;
@@ -139,7 +130,7 @@ const Social = () => {
           profileImageUrl: profileImageUrl,
           lastMessage: data.lastMessageText,
           time: data.lastMessageCreatedAt ? formatTime(data.lastMessageCreatedAt.toDate()) : '',
-          unread: isFocused ? false : (data.unread || false),
+          unread: data.unread || false,
         };
       }));
 
@@ -150,7 +141,7 @@ const Social = () => {
       console.error("Snapshot hatası:", error);
       setRefreshing(false);
     });
-  }, [userId, formatTime, isFocused]);
+  }, [userId, formatTime]);
 
   
   useEffect(() => {
@@ -219,8 +210,13 @@ const Social = () => {
               showsHorizontalScrollIndicator={false}
               keyExtractor={(item) => item.recipientId}
               contentContainerStyle={{ paddingRight: 16 }}
-              renderItem={({ item }) => (
-                <View style={styles.connCard}>
+              renderItem={({ item }) => {
+                const isStudent = !!(item.degree || item.branch);
+                return (
+                <Pressable
+                  style={styles.connCard}
+                  onPress={() => navigation.navigate('OtherProfilePage', { userId: item.recipientId })}
+                >
                   {/* Cover/Banner */}
                   <View style={styles.connCoverArea}>
                     <Image
@@ -230,34 +226,53 @@ const Social = () => {
                       style={styles.connCoverImage}
                     />
                   </View>
-                  {/* Avatar */}
-                  {item.profileImageUrl ? (
-                    <Image source={{ uri: item.profileImageUrl }} style={styles.connAvatar} />
-                  ) : (
-                    <View style={[styles.connAvatar, { justifyContent: 'center', alignItems: 'center', backgroundColor: colors.border }]}>
-                      <MaterialCommunityIcons name="account-circle" size={46} color={colors.textSub} />
+                  {/* Body: square pp + info */}
+                  <View style={styles.connBodyRow}>
+                    <View style={styles.connAvatarWrap}>
+                      {item.profileImageUrl ? (
+                        <Image source={{ uri: item.profileImageUrl }} style={styles.connAvatar} />
+                      ) : (
+                        <View style={[styles.connAvatar, styles.connAvatarPlaceholder]}>
+                          <MaterialCommunityIcons name="account" size={30} color={colors.textSub} />
+                        </View>
+                      )}
                     </View>
-                  )}
-                  {/* Info */}
-                  <View style={styles.connCardInfo}>
-                    <Text style={styles.connName} numberOfLines={1}>{item.name}</Text>
-                    <Text style={styles.connTitle} numberOfLines={1}>{item.jobTitle || 'Üye'}</Text>
-                    <Pressable
-                      style={[styles.connButton, connectedIds.has(item.recipientId) && styles.connButtonActive]}
-                      onPress={() => handleConnectToggle(item.recipientId)}
-                    >
-                      <Ionicons
-                        name={connectedIds.has(item.recipientId) ? 'checkmark' : 'person-add'}
-                        size={13}
-                        color={connectedIds.has(item.recipientId) ? 'white' : colors.primary}
-                      />
-                      <Text style={[styles.connButtonText, { color: connectedIds.has(item.recipientId) ? 'white' : colors.primary }]}>
-                        {connectedIds.has(item.recipientId) ? 'Bağlanıldı' : 'Bağlan'}
+                    <View style={styles.connInfo}>
+                      <Text style={styles.connName} numberOfLines={1}>{item.name}</Text>
+                      <Text style={styles.connJob} numberOfLines={1}>
+                        {isStudent
+                          ? (item.branch || item.jobTitle ? `Öğrenci • ${item.branch || item.jobTitle}` : 'Öğrenci')
+                          : (item.jobTitle || 'Üye')}
                       </Text>
-                    </Pressable>
+                      <View style={styles.connDetailRow}>
+                        <MaterialCommunityIcons name="school-outline" size={11} color={colors.textSub} />
+                        <Text style={styles.connDetailText} numberOfLines={1}>{item.school || 'Okul bilgisi yok'}</Text>
+                      </View>
+                      <View style={styles.connDetailRow}>
+                        <MaterialCommunityIcons name="briefcase-outline" size={11} color={colors.textSub} />
+                        <Text style={styles.connDetailText} numberOfLines={1}>
+                          {isStudent ? 'Şirket yok' : (item.company || 'Şirket bilgisi yok')}
+                        </Text>
+                      </View>
+                    </View>
                   </View>
-                </View>
-              )}
+                  {/* Connect button */}
+                  <Pressable
+                    style={[styles.connButton, connectedIds.has(item.recipientId) && styles.connButtonActive]}
+                    onPress={() => handleConnectToggle(item.recipientId)}
+                  >
+                    <Ionicons
+                      name={connectedIds.has(item.recipientId) ? 'checkmark' : 'person-add'}
+                      size={14}
+                      color="#FFF"
+                    />
+                    <Text style={styles.connButtonText}>
+                      {connectedIds.has(item.recipientId) ? 'Bağlanıldı' : 'Bağlantı kur'}
+                    </Text>
+                  </Pressable>
+                </Pressable>
+                );
+              }}
             />
             <Text style={[styles.sectionTitle, { marginTop: 25 }]}>Mesajlar</Text>
           </View>
@@ -275,8 +290,8 @@ const Social = () => {
               )}
             </View>
             <View style={styles.msgTextWrap}>
-              <Text style={styles.msgName}>{item.name}</Text>
-              <Text style={styles.msgLast} numberOfLines={1}>{item.lastMessage}</Text>
+              <Text style={[styles.msgName, item.unread && styles.msgNameUnread]}>{item.name}</Text>
+              <Text style={[styles.msgLast, item.unread && styles.msgLastUnread]} numberOfLines={1}>{item.lastMessage}</Text>
             </View>
             <View style={styles.msgRight}>
               <Text style={styles.msgTime}>{item.time}</Text>
@@ -307,16 +322,36 @@ const getStyles = (colors) => StyleSheet.create({
   headerTitle: { color: colors.textMain, fontSize: 18, fontWeight: '700' },
   headerSection: { paddingVertical: 10 },
   sectionTitle: { color: colors.textMain, fontSize: 16, fontWeight: '700', marginLeft: 16, marginBottom: 15 },
-  connCard: { backgroundColor: colors.cardBackground, width: 145, height: 165, borderRadius: 12, marginLeft: 16, overflow: 'hidden', borderWidth: 1, borderColor: colors.border },
-  connCoverArea: { width: '100%', height: 45, backgroundColor: colors.border },
+  connCard: { backgroundColor: colors.cardBackground, width: 200, borderRadius: 14, marginLeft: 16, overflow: 'hidden', borderWidth: 1, borderColor: colors.border, paddingBottom: 12 },
+  connCoverArea: { width: '100%', height: 52, backgroundColor: colors.border },
   connCoverImage: { width: '100%', height: '100%', opacity: 0.5 },
-  connAvatar: { width: 54, height: 54, borderRadius: 27, marginTop: -22, alignSelf: 'center', borderWidth: 2, borderColor: colors.cardBackground, zIndex: 1, backgroundColor: colors.border },
-  connCardInfo: { alignItems: 'center', paddingHorizontal: 4, flex: 1, justifyContent: 'space-evenly', paddingBottom: 6 },
-  connName: { color: colors.textMain, fontSize: 11, fontWeight: 'bold', textAlign: 'center' },
-  connTitle: { color: colors.textSub, fontSize: 10, textAlign: 'center' },
-  connButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.border, paddingVertical: 5, width: '90%', justifyContent: 'center', borderRadius: 6, gap: 4, borderWidth: 1, borderColor: colors.primary },
-  connButtonActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  connButtonText: { fontSize: 10, fontWeight: 'bold' },
+  connBodyRow: { flexDirection: 'row', paddingHorizontal: 12, paddingTop: 2 },
+  connAvatarWrap: { marginTop: -22, borderWidth: 3, borderColor: colors.cardBackground, borderRadius: 14, backgroundColor: colors.border, overflow: 'hidden', zIndex: 1, alignSelf: 'flex-start' },
+  connAvatar: { width: 48, height: 48, resizeMode: 'cover', backgroundColor: colors.border },
+  connAvatarPlaceholder: { justifyContent: 'center', alignItems: 'center' },
+  connInfo: { flex: 1, marginLeft: 10, marginTop: 8 },
+  connName: { color: colors.textMain, fontSize: 14, fontWeight: 'bold' },
+  connJob: { color: colors.textSub, fontSize: 12, marginTop: 2 },
+  connDetailRow: { flexDirection: 'row', alignItems: 'center', marginTop: 3 },
+  connDetailText: { color: colors.textSub, fontSize: 11, marginLeft: 3, flex: 1 },
+  connButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    height: 36,
+    marginHorizontal: 12,
+    marginTop: 12,
+    gap: 5,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  connButtonActive: { backgroundColor: '#00BA7C', shadowColor: '#00BA7C' },
+  connButtonText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
   msgItem: {
     flexDirection: 'row',
     paddingHorizontal: 16,
@@ -334,10 +369,18 @@ const getStyles = (colors) => StyleSheet.create({
   msgAvatar: { width: '100%', height: '100%' },
   msgTextWrap: { flex: 1 },
   msgName: { color: colors.textMain, fontSize: 15, fontWeight: '600' },
+  msgNameUnread: { fontWeight: '800' },
   msgLast: { color: colors.textSub, fontSize: 13, marginTop: 2 },
-  msgRight: { alignItems: 'flex-end', marginLeft: 10 },
+  msgLastUnread: { color: colors.textMain, fontWeight: '600' },
+  msgRight: { flexDirection: 'row', alignItems: 'center', marginLeft: 10 },
   msgTime: { color: colors.textSub, fontSize: 11 },
-  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary, marginTop: 5 },
+  unreadDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.primary,
+    marginLeft: 6,
+  },
   emptyText: { color: colors.textSub, textAlign: 'center', marginTop: 50 }
 });
 

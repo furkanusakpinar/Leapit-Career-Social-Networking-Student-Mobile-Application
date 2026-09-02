@@ -245,23 +245,23 @@ const getStyles = (colors) => StyleSheet.create({
   labelText: { color: colors.textSub, fontSize: 13, marginBottom: 6, fontWeight: '500' },
   fieldWrapper: { position: 'relative', width: '100%' },
   inputContainer: {
-    backgroundColor: colors.border,
+    backgroundColor: colors.mode === 'dark' ? '#13151C' : colors.border,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 12,
     paddingHorizontal: 15,
-    height: 55,
+    height: 50,
     marginBottom: 16,
     justifyContent: 'center'
   },
-  input: { color: colors.textMain, fontSize: 15, height: '100%' },
+  input: { color: colors.textMain, fontSize: 16, height: '100%' },
   pickerWrapper: {
-    backgroundColor: colors.border,
+    backgroundColor: colors.mode === 'dark' ? '#13151C' : colors.border,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 12,
     paddingHorizontal: 15,
-    height: 55,
+    height: 50,
     marginBottom: 16,
     justifyContent: 'center'
   },

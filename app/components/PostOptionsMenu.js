@@ -11,7 +11,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { useSelector } from 'react-redux';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { lightTheme, darkTheme } from '../theme/colors';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');

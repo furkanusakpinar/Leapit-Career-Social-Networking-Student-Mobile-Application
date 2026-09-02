@@ -6,7 +6,7 @@ import {
     Dimensions,
     FlatList,
     Image,
-    KeyboardAvoidingView,
+    Keyboard,
     Modal,
     Platform,
     Pressable,
@@ -15,14 +15,95 @@ import {
     TextInput,
     View,
 } from 'react-native';
+import { PanGestureHandler } from 'react-native-gesture-handler';
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { db } from '../../firebaseConfig';
 import { useSelector } from 'react-redux';
 import { lightTheme, darkTheme } from '../theme/colors';
 
-import { PanGestureHandler } from 'react-native-gesture-handler';
-import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+const ActionSheet = ({ visible, onClose, children, keyboardEnabled, onKeyboardHeightChange }) => {
+    const [mounted, setMounted] = useState(false);
+    const [keyboardHeight, setKeyboardHeight] = useState(0);
+    const translateY = useSharedValue(SCREEN_HEIGHT);
+    const backdropOpacity = useSharedValue(0);
+
+    useEffect(() => {
+        if (!keyboardEnabled) return;
+        const show = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow', (e) => {
+            const h = e.endCoordinates?.height || 0;
+            setKeyboardHeight(h);
+            onKeyboardHeightChange?.(h);
+        });
+        const hide = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => {
+            setKeyboardHeight(0);
+            onKeyboardHeightChange?.(0);
+        });
+        return () => {
+            show.remove();
+            hide.remove();
+        };
+    }, [keyboardEnabled]);
+
+    useEffect(() => {
+        if (visible) {
+            setMounted(true);
+            translateY.value = withTiming(-keyboardHeight, { duration: 250 });
+            backdropOpacity.value = withTiming(1, { duration: 300 });
+        } else if (mounted) {
+            translateY.value = withTiming(SCREEN_HEIGHT, { duration: 250 });
+            backdropOpacity.value = withTiming(0, { duration: 250 }, (finished) => {
+                if (finished) runOnJS(setMounted)(false);
+            });
+        }
+    }, [visible]);
+
+    useEffect(() => {
+        if (mounted && visible) {
+            translateY.value = withTiming(-keyboardHeight, { duration: 150 });
+        }
+    }, [keyboardHeight]);
+
+    const animatedStyle = useAnimatedStyle(() => ({
+        transform: [{ translateY: translateY.value }],
+    }));
+
+    const backdropStyle = useAnimatedStyle(() => ({
+        opacity: backdropOpacity.value,
+    }));
+
+    const gestureHandler = (e) => {
+        if (e.nativeEvent.translationY > 0) {
+            translateY.value = -keyboardHeight + e.nativeEvent.translationY;
+        }
+    };
+
+    const gestureEnd = () => {
+        if (translateY.value > 150 - keyboardHeight) {
+            runOnJS(onClose)();
+        } else {
+            translateY.value = withTiming(-keyboardHeight, { duration: 250 });
+        }
+    };
+
+    if (!visible && !mounted) return null;
+
+    return (
+        <Modal transparent visible={mounted} animationType="none" onRequestClose={onClose}>
+            <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+                <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)' }, backdropStyle]}>
+                    <Pressable style={{ flex: 1 }} onPress={onClose} />
+                </Animated.View>
+                <PanGestureHandler onGestureEvent={gestureHandler} onEnded={gestureEnd}>
+                    <Animated.View style={[{ width: '100%', justifyContent: 'flex-end' }, animatedStyle]}>
+                        {children}
+                    </Animated.View>
+                </PanGestureHandler>
+            </View>
+        </Modal>
+    );
+};
 
 const CommentItem = ({ item, isReply = false, colors, styles, onReplyPress }) => (
     <View style={[styles.commentItem, isReply && styles.replyItemStyle]}>
@@ -63,51 +144,9 @@ const CommentModal = ({ visible, onClose, postId, currentUserId }) => {
     const [loading, setLoading] = useState(false);
     const [currentUserData, setCurrentUserData] = useState(null);
     const [replyingTo, setReplyingTo] = useState(null);
+    const [keyboardHeight, setKeyboardHeight] = useState(0);
 
-    const [modalVisible, setModalVisible] = useState(false);
-    const translateY = useSharedValue(SCREEN_HEIGHT);
-    const backdropOpacity = useSharedValue(0);
-
-    useEffect(() => {
-        if (visible) {
-            setModalVisible(true);
-            translateY.value = withTiming(0, { duration: 250 });
-            backdropOpacity.value = withTiming(1, { duration: 300 });
-        } else {
-            translateY.value = withTiming(SCREEN_HEIGHT, { duration: 250 });
-            backdropOpacity.value = withTiming(0, { duration: 250 }, (finished) => {
-                if (finished) {
-                    runOnJS(setModalVisible)(false);
-                }
-            });
-        }
-    }, [visible]);
-
-    const animatedStyle = useAnimatedStyle(() => {
-        return {
-            transform: [{ translateY: translateY.value }]
-        };
-    });
-
-    const backdropAnimatedStyle = useAnimatedStyle(() => {
-        return {
-            opacity: backdropOpacity.value
-        };
-    });
-
-    const gestureHandler = (event) => {
-        if (event.nativeEvent.translationY > 0) {
-            translateY.value = event.nativeEvent.translationY;
-        }
-    };
-
-    const gestureEnd = () => {
-        if (translateY.value > 150) {
-            runOnJS(onClose)();
-        } else {
-            translateY.value = withTiming(0, { duration: 250 });
-        }
-    };
+    const availableHeight = keyboardHeight > 0 ? SCREEN_HEIGHT - keyboardHeight - 120 : SCREEN_HEIGHT * 0.6;
 
     useEffect(() => {
         if (!currentUserId) return;
@@ -208,124 +247,130 @@ const CommentModal = ({ visible, onClose, postId, currentUserId }) => {
     };
 
     return (
-        <Modal
-            animationType="none"
-            transparent={true}
-            visible={modalVisible}
-            onRequestClose={onClose}
-        >
-            <View style={styles.modalOverlay}>
-                <Animated.View style={[StyleSheet.absoluteFill, backdropAnimatedStyle]}>
-                    <Pressable style={styles.backdrop} onPress={onClose} />
-                </Animated.View>
+        <ActionSheet visible={visible} onClose={() => { onClose(); setReplyingTo(null); }} keyboardEnabled onKeyboardHeightChange={setKeyboardHeight}>
+            <View style={[styles.sheetContentWrap, { maxHeight: availableHeight }]}>
+                <View style={styles.sheetCard}>
+                    <View style={styles.handleBar} />
+                    <Text style={styles.sheetTitle}>Yorumlar</Text>
+                    <FlatList
+                        data={comments}
+                        renderItem={renderItem}
+                        keyExtractor={(item) => item.id}
+                        contentContainerStyle={styles.commentList}
+                        style={styles.commentListStyle}
+                        keyboardShouldPersistTaps="handled"
+                        ListEmptyComponent={
+                            <View style={styles.emptyComments}>
+                                <Text style={styles.emptyCommentsText}>Henüz yorum yok. İlk yorumu sen yap.</Text>
+                            </View>
+                        }
+                    />
+                </View>
 
-                <PanGestureHandler onGestureEvent={gestureHandler} onEnded={gestureEnd}>
-                    <Animated.View style={[styles.modalContent, animatedStyle]}>
-                        <View style={styles.handleBar} />
-                        <View style={styles.header}>
-                            <Text style={styles.headerTitle}>Yorumlar</Text>
+                <View style={styles.inputCard}>
+                    {replyingTo && (
+                        <View style={styles.replyingToIndicator}>
+                            <Text style={styles.replyingToIndicatorText}>
+                                @{replyingTo.userName} kullanıcısına yanıt veriliyor
+                            </Text>
+                            <Pressable onPress={() => setReplyingTo(null)} style={styles.cancelReplyBtn}>
+                                <Text style={styles.cancelReplyText}>İptal</Text>
+                            </Pressable>
                         </View>
-
-                        <FlatList
-                            data={comments}
-                            renderItem={renderItem}
-                            keyExtractor={(item) => item.id}
-                            contentContainerStyle={styles.commentList}
+                    )}
+                    <View style={styles.inputRow}>
+                        <Image
+                            source={
+                                currentUserData?.profileImageUrl && typeof currentUserData.profileImageUrl === 'string'
+                                    ? { uri: currentUserData.profileImageUrl }
+                                    : require('../../assets/images/ProfileSquare.png')
+                            }
+                            style={styles.inputAvatar}
                         />
-
-                        {replyingTo && (
-                            <View style={styles.replyingToIndicator}>
-                                <Text style={styles.replyingToIndicatorText}>
-                                    @{replyingTo.userName} kullanıcısına yanıt veriliyor
-                                </Text>
-                                <Pressable onPress={() => setReplyingTo(null)} style={styles.cancelReplyBtn}>
-                                    <Text style={styles.cancelReplyText}>İptal</Text>
-                                </Pressable>
-                            </View>
-                        )}
-
-                        <KeyboardAvoidingView
-                            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                            keyboardVerticalOffset={Platform.OS === 'ios' ? 70 : 0}
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Yorum ekle..."
+                            placeholderTextColor={colors.textSub}
+                            value={commentText}
+                            onChangeText={setCommentText}
+                            multiline
+                            maxLength={5000}
+                        />
+                        <Pressable
+                            style={[styles.sendBtn, !commentText.trim() && { opacity: 0.5 }]}
+                            onPress={handleAddComment}
+                            disabled={loading || !commentText.trim()}
                         >
-                            <View style={styles.inputSection}>
+                            {loading ? (
+                                <ActivityIndicator size="small" color={colors.primary} />
+                            ) : (
                                 <Image
-                                    source={
-                                        currentUserData?.profileImageUrl && typeof currentUserData.profileImageUrl === 'string'
-                                            ? { uri: currentUserData.profileImageUrl }
-                                            : require('../../assets/images/ProfileSquare.png')
-                                    }
-                                    style={styles.inputAvatar}
+                                    source={require('../../assets/images/ArrowRight.png')}
+                                    style={styles.sendIcon}
                                 />
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Yorum ekle..."
-                                    placeholderTextColor={colors.textSub}
-                                    value={commentText}
-                                    onChangeText={setCommentText}
-                                    multiline
-                                    maxLength={5000}
-                                />
-                                <Pressable
-                                    style={[styles.sendBtn, !commentText.trim() && { opacity: 0.5 }]}
-                                    onPress={handleAddComment}
-                                    disabled={loading || !commentText.trim()}
-                                >
-                                    {loading ? (
-                                        <ActivityIndicator size="small" color={colors.primary} />
-                                    ) : (
-                                        <Image
-                                            source={require('../../assets/images/ArrowRight.png')}
-                                            style={styles.sendIcon}
-                                        />
-                                    )}
-                                </Pressable>
-                            </View>
-                        </KeyboardAvoidingView>
-                    </Animated.View>
-                </PanGestureHandler>
+                            )}
+                        </Pressable>
+                    </View>
+                </View>
             </View>
-        </Modal>
+        </ActionSheet>
     );
 };
 
 const getStyles = (colors) => StyleSheet.create({
-    modalOverlay: {
-        flex: 1,
-        justifyContent: 'flex-end',
+    sheetContentWrap: {
+        width: '95%',
+        alignSelf: 'center',
+        marginBottom: 20,
     },
-    backdrop: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-    },
-    modalContent: {
-        backgroundColor: colors.background,
-        borderTopLeftRadius: 25,
-        borderTopRightRadius: 25,
-        height: SCREEN_HEIGHT * 0.7,
-        paddingBottom: Platform.OS === 'ios' ? 20 : 0,
+    sheetCard: {
+        backgroundColor: colors.cardBackground,
+        paddingTop: 0,
+        borderRadius: 25,
+        borderColor: colors.border,
+        borderWidth: 1,
+        width: '100%',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -5 },
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
+        elevation: 15,
+        overflow: 'hidden',
+        flexShrink: 1,
     },
     handleBar: {
         width: 40,
         height: 5,
         backgroundColor: colors.border,
-        borderRadius: 2.5,
+        borderRadius: 10,
         alignSelf: 'center',
-        marginTop: 10,
+        marginTop: 8,
+        marginBottom: 8,
     },
-    header: {
-        padding: 15,
+    sheetTitle: {
+        color: colors.textMain,
+        fontSize: 17,
+        fontWeight: '700',
+        textAlign: 'center',
+        paddingBottom: 8,
         borderBottomWidth: 1,
         borderBottomColor: colors.border,
-        alignItems: 'center',
+        marginHorizontal: 15,
     },
-    headerTitle: {
-        color: colors.textMain,
-        fontSize: 16,
-        fontWeight: 'bold',
+    commentListStyle: {
+        flexGrow: 1,
     },
     commentList: {
-        padding: 15,
+        paddingHorizontal: 15,
+        paddingVertical: 8,
+    },
+    emptyComments: {
+        alignItems: 'center',
+        paddingVertical: 40,
+    },
+    emptyCommentsText: {
+        color: colors.textSub,
+        fontSize: 14,
     },
     commentItem: {
         flexDirection: 'row',
@@ -368,13 +413,22 @@ const getStyles = (colors) => StyleSheet.create({
         fontSize: 12,
         fontWeight: 'bold',
     },
-    inputSection: {
+    inputCard: {
+        backgroundColor: colors.cardBackground,
+        borderRadius: 15,
+        borderColor: colors.border,
+        borderWidth: 1,
+        width: '100%',
+        marginTop: 10,
+        paddingTop: 6,
+        paddingBottom: 10,
+        flexShrink: 0,
+    },
+    inputRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        padding: 15,
-        borderTopWidth: 1,
-        borderTopColor: colors.border,
-        backgroundColor: colors.background,
+        paddingHorizontal: 15,
+        paddingVertical: 8,
     },
     inputAvatar: {
         width: 36,
@@ -385,7 +439,7 @@ const getStyles = (colors) => StyleSheet.create({
     input: {
         flex: 1,
         color: colors.textMain,
-        backgroundColor: colors.cardBackground,
+        backgroundColor: colors.background,
         borderRadius: 20,
         paddingHorizontal: 15,
         paddingVertical: 8,
@@ -411,12 +465,11 @@ const getStyles = (colors) => StyleSheet.create({
         marginBottom: 2,
     },
     replyingToIndicator: {
-        backgroundColor: colors.cardBackground,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 20,
-        paddingBottom: 5,
+        paddingVertical: 5,
     },
     replyingToIndicatorText: {
         color: colors.textSub,

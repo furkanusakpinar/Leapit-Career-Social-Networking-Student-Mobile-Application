@@ -1,6 +1,5 @@
 import { useNavigation } from '@react-navigation/native';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   arrayRemove,
   arrayUnion,
@@ -45,7 +44,6 @@ import CommentModal from '../components/CommentModal';
 import PostOptionsMenu from '../components/PostOptionsMenu';
 import VideoPlayer from '../components/VideoPlayer';
 import { lightTheme, darkTheme } from '../theme/colors';
-import { Ionicons } from '@expo/vector-icons';
 
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -63,7 +61,7 @@ const truncateString = (str, maxLength) => {
   return str.length <= maxLength ? str : str.substring(0, maxLength - 3) + '...';
 };
 
-const ActionButton = ({ iconComponent, onPress, isActive, activeColor, inactiveColor, label, iconStyle, textSub, styles }) => {
+const ActionButton = ({ iconComponent, onPress, isActive, activeColor, inactiveColor, label, iconStyle, styles }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const handlePress = () => {
@@ -82,16 +80,16 @@ const ActionButton = ({ iconComponent, onPress, isActive, activeColor, inactiveC
           { transform: [{ scale: scaleAnim }] }
         ]}
       >
-        {iconComponent({ color: isActive ? activeColor : inactiveColor, size: 20 })}
+        {iconComponent({ color: isActive ? activeColor : inactiveColor, size: 24 })}
       </Animated.View>
       {label && (
-        <Text style={[styles.actionLabel, { color: textSub }, isActive && { color: activeColor }]}>{label}</Text>
+        <Text style={styles.actionLabel}>{label}</Text>
       )}
     </Pressable>
   );
 };
 
-const PostActions = ({ post, colors, styles, onAction, onCommentPress }) => {
+const PostActions = ({ post, colors, styles, onAction, onCommentPress, hasMedia }) => {
   const formatNumber = (num) => {
     if (num >= 1000000) return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
     if (num >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
@@ -100,73 +98,59 @@ const PostActions = ({ post, colors, styles, onAction, onCommentPress }) => {
 
   return (
     <View>
-      {(post.likesCount > 0 || post.commentsCount > 0 || post.repeatsCount > 0) && (
-        <View style={styles.statsRow}>
-          <View style={styles.statsLeft}>
-            {post.likesCount > 0 && (
-              <>
-                <Image
-                  source={require('../../assets/images/circleLike.png')}
-                  style={styles.reactionIcon}
-                />
-                <Text style={styles.statText}>
-                  {formatNumber(post.likesCount)} Beğeni
-                </Text>
-              </>
-            )}
-          </View>
-          <Text style={styles.statText}>
-            {post.commentsCount > 0 ? `${formatNumber(post.commentsCount)} comments` : ''}
-            {(post.commentsCount > 0 && post.repeatsCount > 0) ? ' • ' : ''}
-            {post.repeatsCount > 0 ? `${formatNumber(post.repeatsCount)} reposts` : ''}
-          </Text>
-        </View>
-      )}
-
-      <View style={styles.divider} />
+      {!hasMedia && <View style={styles.divider} />}
 
       <View style={styles.cardActions}>
+        <View style={styles.cardActionsLeft}>
+          <ActionButton
+            iconComponent={(props) => (
+              <MaterialCommunityIcons name={post.liked ? "heart" : "heart-outline"} {...props} />
+            )}
+            isActive={post.liked}
+            activeColor="#FF4B4B"
+            inactiveColor={colors.iconTint}
+            label={post.likesCount > 0 ? formatNumber(post.likesCount) : ''}
+            styles={styles}
+            onPress={() => onAction(post.id, 'likedBy', post.liked)}
+          />
+          <ActionButton
+            iconComponent={(props) => (
+              <Image
+                source={require('../../assets/images/Comment.png')}
+                style={{ width: props.size, height: props.size, tintColor: props.color }}
+                resizeMode="contain"
+              />
+            )}
+            inactiveColor={colors.iconTint}
+            label={post.commentsCount > 0 ? formatNumber(post.commentsCount) : ''}
+            styles={styles}
+            onPress={() => onCommentPress(post.id)}
+          />
+          <ActionButton
+            iconComponent={(props) => (
+              <Image
+                source={require('../../assets/images/Repost.png')}
+                style={{ width: props.size, height: props.size, tintColor: props.color }}
+                resizeMode="contain"
+              />
+            )}
+            isActive={post.repeated}
+            activeColor="#00BA7C"
+            inactiveColor={colors.iconTint}
+            label={post.repeatsCount > 0 ? formatNumber(post.repeatsCount) : ''}
+            styles={styles}
+            onPress={() => onAction(post.id, 'repeatedBy', post.repeated)}
+          />
+        </View>
         <ActionButton
           iconComponent={(props) => (
-            <MaterialCommunityIcons name={post.liked ? "heart" : "heart-outline"} {...props} />
+            <Image
+              source={require('../../assets/images/Send.png')}
+              style={{ width: props.size, height: props.size, tintColor: props.color }}
+              resizeMode="contain"
+            />
           )}
-          isActive={post.liked}
-          activeColor="#FF4B4B"
           inactiveColor={colors.iconTint}
-          textSub={colors.textSub}
-          label="Like"
-          styles={styles}
-          onPress={() => onAction(post.id, 'likedBy', post.liked)}
-        />
-        <ActionButton
-          iconComponent={(props) => (
-            <MaterialCommunityIcons name="comment-outline" {...props} />
-          )}
-          label="Comment"
-          inactiveColor={colors.iconTint}
-          textSub={colors.textSub}
-          styles={styles}
-          onPress={() => onCommentPress(post.id)}
-        />
-        <ActionButton
-          iconComponent={(props) => (
-            <MaterialCommunityIcons name={post.repeated ? "repeat" : "repeat-variant"} {...props} />
-          )}
-          isActive={post.repeated}
-          activeColor="#00BA7C"
-          inactiveColor={colors.iconTint}
-          textSub={colors.textSub}
-          label="Repost"
-          styles={styles}
-          onPress={() => onAction(post.id, 'repeatedBy', post.repeated)}
-        />
-        <ActionButton
-          iconComponent={(props) => (
-            <MaterialIcons name="share" {...props} />
-          )}
-          label="Send"
-          inactiveColor={colors.iconTint}
-          textSub={colors.textSub}
           styles={styles}
           onPress={() => { }}
         />
@@ -460,6 +444,7 @@ const HomePage = () => {
                 post={post}
                 colors={colors}
                 styles={styles}
+                hasMedia={hasMedia}
                 onAction={handleAction}
                 onCommentPress={(id) => {
                   setActivePostId(id);
@@ -526,38 +511,26 @@ const getStyles = (colors) => StyleSheet.create({
   moreText: { color: colors.textSub, fontSize: 14, fontWeight: '600' },
   mediaWrapper: { width: '100%', aspectRatio: 1.2, backgroundColor: colors.background },
   mediaContent: { width: '100%', height: '100%' },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-  },
-  statsLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  reactionIcon: {
-    width: 16,
-    height: 16,
-    marginRight: 6,
-    resizeMode: 'contain'
-  },
-  statText: { color: colors.textSub, fontSize: 12 },
   divider: { height: 1, backgroundColor: colors.border, marginHorizontal: 15 },
   cardActions: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 10,
     paddingVertical: 8,
+  },
+  cardActionsLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
+    justifyContent: 'center',
+    paddingVertical: 6,
     paddingHorizontal: 10,
   },
-  actionIconContainer: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  actionIconContainer: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
   actionIcon: { width: 20, height: 20, resizeMode: 'contain' },
   actionLabel: { color: colors.textSub, fontSize: 13, marginLeft: 6, fontWeight: '600' },
   deleteAllButton: {

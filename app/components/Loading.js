@@ -1,19 +1,19 @@
 import React, { useEffect } from 'react';
 import { View, Image, StyleSheet } from 'react-native';
-import { useDispatch, useSelector } from 'react-redux';
+import { useDispatch } from 'react-redux';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { setUserId, setLoading, setAuth, setProfileStep } from '../redux/userSlice';
-import { lightTheme, darkTheme } from '../theme/colors';
+import { setUserId, setLoading, setAuth, setProfileStep, setUserInfo } from '../redux/userSlice';
 import { doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 
+const CONTENT_DELAY = 2800;
+
 const Loading = () => {
   const dispatch = useDispatch();
-  const themeMode = useSelector(state => state.theme?.mode || 'dark');
-  const colors = themeMode === 'light' ? lightTheme : darkTheme;
-  const styles = getStyles(colors);
 
   useEffect(() => {
+    let active = true;
+
     const checkUserCredentials = async () => {
       try {
         dispatch(setLoading(true));
@@ -39,7 +39,7 @@ const Loading = () => {
                   // Profil tamamlanmamış ve 20 dk geçmemiş — hangi adımda kaldığını belirle
                   dispatch(setUserId(storedUserId));
                   dispatch(setUserInfo(userData));
-                  
+
                   let step = 'CreateProfile';
                   try {
                     const step1Raw = await AsyncStorage.getItem('step1_completed');
@@ -90,31 +90,36 @@ const Loading = () => {
       } catch (error) {
         console.error('Kontrol hatası:', error);
         dispatch(setAuth(false));
-      } finally {
-        setTimeout(() => {
-          dispatch(setLoading(false));
-        }, 2000);
       }
     };
 
-    checkUserCredentials();
+    const minDelay = new Promise((resolve) => {
+      setTimeout(resolve, CONTENT_DELAY);
+    });
+
+    Promise.all([checkUserCredentials(), minDelay]).then(() => {
+      if (active) dispatch(setLoading(false));
+    });
+
+    return () => {
+      active = false;
+    };
   }, [dispatch]);
 
   return (
     <View style={styles.container}>
-      <View style={styles.logoContainer}>
-        <Image source={require('../../assets/images/LeapitLogo.png')} style={styles.logo} />
-        <Image source={require('../../assets/images/LEAPİT.png')} style={[styles.brandName, { tintColor: colors.textMain }]} />
-      </View>
+      <Image
+        source={require('../../assets/images/LeapitLogo1024.png')}
+        style={styles.logo}
+        resizeMode="contain"
+      />
     </View>
   );
 };
 
-const getStyles = (colors) => StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
-  logoContainer: { flexDirection: 'row', alignItems: 'center' },
-  logo: { width: 80, height: 80, resizeMode: 'contain', marginRight: -12 },
-  brandName: { width: 160, height: 50, resizeMode: 'contain' },
+const styles = StyleSheet.create({
+  container: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#161622' },
+  logo: { width: 150, height: 150 },
 });
 
 export default Loading;

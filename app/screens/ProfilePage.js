@@ -2,18 +2,14 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { collection, deleteDoc, doc, getDoc, getDocs, query, where, arrayUnion, arrayRemove, updateDoc, setDoc } from 'firebase/firestore';
 import moment from 'moment';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   ActivityIndicator,
   Alert,
   Animated as RNAnimated,
   Dimensions,
   Image,
-  KeyboardAvoidingView,
   Linking,
-  Modal,
-  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -28,7 +24,6 @@ import Animated, {
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
-  withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
@@ -42,10 +37,10 @@ import { BlurView } from 'expo-blur';
 import VideoPlayer from '../components/VideoPlayer';
 import CommentModal from '../components/CommentModal';
 import PostOptionsMenu from '../components/PostOptionsMenu';
+import BottomSheet from '../components/BottomSheet';
 import { deleteFromCloudinary, uploadToCloudinary } from '../utils/cloudinary';
 import { fetchReadmeFromGithub } from '../utils/github';
 import * as ImagePicker from 'expo-image-picker';
-import { Ionicons } from '@expo/vector-icons';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SHEET_HEIGHT = SCREEN_HEIGHT * 0.88;
@@ -165,25 +160,8 @@ const buildReadmeHtml = (content, isDark, colors) => {
 
 // ─── Project Detail Bottom Sheet ──────────────────────────────────────────────
 function ProjectSheet({ project, visible, onClose, colors, isDark }) {
-  const translateY = useSharedValue(SHEET_HEIGHT);
-  const opacity = useSharedValue(0);
-  const insets = useSafeAreaInsets();
-  const [show, setShow] = useState(false);
   const [readmeContent, setReadmeContent] = useState((project?.readme || project?.content) || '');
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (visible) {
-      setShow(true);
-      opacity.value = withTiming(1, { duration: 220 });
-      translateY.value = withTiming(0, { duration: 320 });
-    } else {
-      opacity.value = withTiming(0, { duration: 200 });
-      translateY.value = withTiming(SHEET_HEIGHT, { duration: 280 }, () => {
-        runOnJS(setShow)(false);
-      });
-    }
-  }, [visible]);
 
   useEffect(() => {
     if (visible && project) {
@@ -203,50 +181,18 @@ function ProjectSheet({ project, visible, onClose, colors, isDark }) {
     }
   }, [visible, project]);
 
-  const sheetStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-  }));
-  const backdropStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-  }));
-
-  if (!show || !project) return null;
+  if (!project) return null;
 
   const readmeHtml = buildReadmeHtml(readmeContent || 'İçerik bulunamadı.', isDark, colors);
 
   return (
-    <Modal transparent animationType="none" statusBarTranslucent>
-      {/* Backdrop */}
-      <Animated.View style={[sheetStyles.backdrop, backdropStyle]}>
-        <Pressable style={{ flex: 1 }} onPress={onClose} />
-      </Animated.View>
-
-      {/* Sheet */}
-      <Animated.View
-        style={[
-          sheetStyles.sheet,
-          { backgroundColor: colors.cardBackground, paddingBottom: insets.bottom + 16 },
-          sheetStyle,
-        ]}
-      >
-        {/* Handle */}
-        <View style={sheetStyles.handle} />
-
-        {/* Header */}
-        <View style={[sheetStyles.sheetHeader, { borderBottomColor: colors.border }]}>
-          <View style={{ flex: 1 }}>
-            <Text style={[sheetStyles.sheetTitle, { color: colors.textMain }]} numberOfLines={2}>
-              {project.title || 'Proje Detayı'}
-            </Text>
-            <Text style={[sheetStyles.sheetDate, { color: colors.textSub }]}>
-              {formatTimeAgo(project.createdAt)}
-            </Text>
-          </View>
-          <TouchableOpacity onPress={onClose} style={[sheetStyles.closeBtn, { backgroundColor: colors.background }]}>
-            <Text style={{ color: colors.textMain, fontSize: 16 }}>✕</Text>
-          </TouchableOpacity>
-        </View>
-
+    <BottomSheet
+      visible={visible}
+      onClose={onClose}
+      title={project.title || 'Proje Detayı'}
+      subtitle={formatTimeAgo(project.createdAt)}
+      contentStyle={{ height: SHEET_HEIGHT }}
+    >
         {/* GitHub Link */}
         {!!project.githubUrl && (
           <TouchableOpacity
@@ -295,18 +241,12 @@ function ProjectSheet({ project, visible, onClose, colors, isDark }) {
             </ScrollView>
           </View>
         )}
-      </Animated.View>
-    </Modal>
+    </BottomSheet>
   );
 }
 
 // ─── Profile Edit Bottom Sheet ────────────────────────────────────────────────
 function ProfileEditSheet({ visible, onClose, colors, isDark, userData, userId, onSaveSuccess }) {
-  const translateY = useSharedValue(SHEET_HEIGHT);
-  const opacity = useSharedValue(0);
-  const insets = useSafeAreaInsets();
-  const [show, setShow] = useState(false);
-
   const [bio, setBio] = useState('');
   const [userLocation, setUserLocation] = useState('');
   const [cvUrl, setCvUrl] = useState('');
@@ -315,19 +255,6 @@ function ProfileEditSheet({ visible, onClose, colors, isDark, userData, userId, 
   const [profileImageUri, setProfileImageUri] = useState(null);
   const [backProfileImageUri, setBackProfileImageUri] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-
-  useEffect(() => {
-    if (visible) {
-      setShow(true);
-      opacity.value = withTiming(1, { duration: 220 });
-      translateY.value = withTiming(0, { duration: 320 });
-    } else {
-      opacity.value = withTiming(0, { duration: 200 });
-      translateY.value = withTiming(SHEET_HEIGHT, { duration: 280 }, () => {
-        runOnJS(setShow)(false);
-      });
-    }
-  }, [visible]);
 
   useEffect(() => {
     if (visible && userData) {
@@ -427,33 +354,10 @@ function ProfileEditSheet({ visible, onClose, colors, isDark, userData, userId, 
     }
   };
 
-  const sheetStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-  }));
-  const backdropStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-  }));
-
-  if (!show) return null;
-
   const canSaveProfile = bio.trim() !== '' && userLocation.trim() !== '' && !isLoading;
 
   return (
-    <Modal transparent animationType="none" statusBarTranslucent>
-      {/* Backdrop */}
-      <Animated.View style={[sheetStyles.backdrop, backdropStyle]}>
-        <Pressable style={{ flex: 1 }} onPress={onClose} />
-      </Animated.View>
-
-      {/* Sheet */}
-      <Animated.View
-        style={[
-          sheetStyles.sheet,
-          sheetStyle,
-          { backgroundColor: colors.cardBackground, paddingBottom: insets.bottom + 10 },
-        ]}
-      >
-        <View style={sheetStyles.handle} />
+    <BottomSheet visible={visible} onClose={onClose} title="Profili Düzenle" contentStyle={{ height: SHEET_HEIGHT }}>
         <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 15, paddingBottom: 40 }}>
             {/* Banner + Avatar Overlay (ProfilePage tarzı) */}
             <View style={{ width: '100%', marginBottom: 48, marginTop: 5 }}>
@@ -502,11 +406,13 @@ function ProfileEditSheet({ visible, onClose, colors, isDark, userData, userId, 
               placeholder="Kendinizden bahsedin..."
               placeholderTextColor={colors.textSub}
               style={{
-                backgroundColor: isDark ? '#101216' : '#F0F0F0',
-                borderRadius: 10,
-                padding: 10,
+                backgroundColor: isDark ? '#13151C' : '#F0F0F0',
+                borderWidth: 1,
+                borderColor: colors.border,
+                borderRadius: 12,
+                padding: 12,
                 color: colors.textMain,
-                fontSize: 14,
+                fontSize: 16,
                 height: 80,
                 textAlignVertical: 'top',
               }}
@@ -523,12 +429,14 @@ function ProfileEditSheet({ visible, onClose, colors, isDark, userData, userId, 
               placeholder="Şehir, Ülke"
               placeholderTextColor={colors.textSub}
               style={{
-                backgroundColor: isDark ? '#101216' : '#F0F0F0',
-                borderRadius: 10,
-                padding: 10,
+                backgroundColor: isDark ? '#13151C' : '#F0F0F0',
+                borderWidth: 1,
+                borderColor: colors.border,
+                borderRadius: 12,
+                paddingHorizontal: 15,
                 color: colors.textMain,
-                fontSize: 14,
-                height: 44,
+                fontSize: 16,
+                height: 50,
               }}
               value={userLocation}
               onChangeText={setUserLocation}
@@ -542,12 +450,14 @@ function ProfileEditSheet({ visible, onClose, colors, isDark, userData, userId, 
               placeholder="CV / Portfolyo linkinizi girin..."
               placeholderTextColor={colors.textSub}
               style={{
-                backgroundColor: isDark ? '#101216' : '#F0F0F0',
-                borderRadius: 10,
-                padding: 10,
+                backgroundColor: isDark ? '#13151C' : '#F0F0F0',
+                borderWidth: 1,
+                borderColor: colors.border,
+                borderRadius: 12,
+                paddingHorizontal: 15,
                 color: colors.textMain,
-                fontSize: 14,
-                height: 44,
+                fontSize: 16,
+                height: 50,
               }}
               value={cvUrl}
               onChangeText={setCvUrl}
@@ -557,12 +467,12 @@ function ProfileEditSheet({ visible, onClose, colors, isDark, userData, userId, 
 
             {/* GitHub Linki */}
             <Text style={{ color: colors.textSub, fontSize: 12, fontWeight: '600', marginBottom: 4 }}>GitHub Linki (İsteğe Bağlı)</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? '#101216' : '#F0F0F0', borderRadius: 10, paddingHorizontal: 10, marginBottom: 12, height: 44 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? '#13151C' : '#F0F0F0', borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 15, marginBottom: 12, height: 50 }}>
               <Ionicons name="logo-github" size={18} color={colors.textSub} style={{ marginRight: 8 }} />
               <TextInput
                 placeholder="https://github.com/kullanici"
                 placeholderTextColor={colors.textSub}
-                style={{ flex: 1, color: colors.textMain, fontSize: 14 }}
+                style={{ flex: 1, color: colors.textMain, fontSize: 16 }}
                 value={githubLink}
                 onChangeText={setGithubLink}
                 autoCapitalize="none"
@@ -573,12 +483,12 @@ function ProfileEditSheet({ visible, onClose, colors, isDark, userData, userId, 
 
             {/* Instagram Linki */}
             <Text style={{ color: colors.textSub, fontSize: 12, fontWeight: '600', marginBottom: 4 }}>Instagram Linki (İsteğe Bağlı)</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? '#101216' : '#F0F0F0', borderRadius: 10, paddingHorizontal: 10, marginBottom: 15, height: 44 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? '#13151C' : '#F0F0F0', borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 15, marginBottom: 15, height: 50 }}>
               <Ionicons name="logo-instagram" size={18} color={colors.textSub} style={{ marginRight: 8 }} />
               <TextInput
                 placeholder="https://instagram.com/kullanici"
                 placeholderTextColor={colors.textSub}
-                style={{ flex: 1, color: colors.textMain, fontSize: 14 }}
+                style={{ flex: 1, color: colors.textMain, fontSize: 16 }}
                 value={instagramLink}
                 onChangeText={setInstagramLink}
                 autoCapitalize="none"
@@ -606,8 +516,7 @@ function ProfileEditSheet({ visible, onClose, colors, isDark, userData, userId, 
               )}
             </TouchableOpacity>
         </View>
-      </Animated.View>
-    </Modal>
+    </BottomSheet>
   );
 }
 
@@ -617,7 +526,7 @@ const truncateString = (str, maxLength) => {
   return str.length <= maxLength ? str : str.substring(0, maxLength - 3) + '...';
 };
 
-const PostCardActionButton = ({ iconComponent, onPress, isActive, activeColor, inactiveColor, label, textSub, s }) => {
+const PostCardActionButton = ({ iconComponent, onPress, isActive, activeColor, inactiveColor, label, s }) => {
   const scaleAnim = useRef(new RNAnimated.Value(1)).current;
   const handlePress = () => {
     RNAnimated.sequence([
@@ -629,57 +538,66 @@ const PostCardActionButton = ({ iconComponent, onPress, isActive, activeColor, i
   return (
     <Pressable style={s.actionButton} onPress={handlePress}>
       <RNAnimated.View style={[s.actionIconContainer, { transform: [{ scale: scaleAnim }] }]}>
-        {iconComponent({ color: isActive ? activeColor : inactiveColor, size: 20 })}
+        {iconComponent({ color: isActive ? activeColor : inactiveColor, size: 24 })}
       </RNAnimated.View>
-      {label && <Text style={[s.actionLabel, { color: textSub }, isActive && { color: activeColor }]}>{label}</Text>}
+      {label && <Text style={s.actionLabel}>{label}</Text>}
     </Pressable>
   );
 };
 
-const PostCardActions = ({ item, colors, s, onPostAction, onCommentPress }) => {
+const PostCardActions = ({ item, colors, s, onPostAction, onCommentPress, hasMedia }) => {
+  const formatNumber = (num) => {
+    if (num >= 1000000) return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+    if (num >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+    return num || 0;
+  };
+
   return (
     <View>
-      {(item.likesCount > 0 || item.commentsCount > 0 || item.repeatsCount > 0) && (
-        <View style={s.statsRow}>
-          <View style={s.statsLeft}>
-            {item.likesCount > 0 && (
-              <>
-                <Image source={require('../../assets/images/circleLike.png')} style={s.reactionIcon} />
-                <Text style={s.statText}>{formatCount(item.likesCount)} Beğeni</Text>
-              </>
-            )}
-          </View>
-          <Text style={s.statText}>
-            {item.commentsCount > 0 ? `${formatCount(item.commentsCount)} comments` : ''}
-            {item.commentsCount > 0 && item.repeatsCount > 0 ? ' • ' : ''}
-            {item.repeatsCount > 0 ? `${formatCount(item.repeatsCount)} reposts` : ''}
-          </Text>
-        </View>
-      )}
-      <View style={s.divider} />
+      {!hasMedia && <View style={s.divider} />}
       <View style={s.cardActions}>
+        <View style={s.cardActionsLeft}>
+          <PostCardActionButton
+            iconComponent={(props) => <MaterialCommunityIcons name={item.liked ? 'heart' : 'heart-outline'} {...props} />}
+            isActive={item.liked} activeColor="#FF4B4B" inactiveColor={colors.iconTint}
+            label={item.likesCount > 0 ? formatNumber(item.likesCount) : ''} s={s}
+            onPress={() => onPostAction(item.id, 'likedBy', item.liked)}
+          />
+          <PostCardActionButton
+            iconComponent={(props) => (
+              <Image
+                source={require('../../assets/images/Comment.png')}
+                style={{ width: props.size, height: props.size, tintColor: props.color }}
+                resizeMode="contain"
+              />
+            )}
+            inactiveColor={colors.iconTint}
+            label={item.commentsCount > 0 ? formatNumber(item.commentsCount) : ''} s={s}
+            onPress={() => onCommentPress(item.id)}
+          />
+          <PostCardActionButton
+            iconComponent={(props) => (
+              <Image
+                source={require('../../assets/images/Repost.png')}
+                style={{ width: props.size, height: props.size, tintColor: props.color }}
+                resizeMode="contain"
+              />
+            )}
+            isActive={item.repeated} activeColor="#00BA7C" inactiveColor={colors.iconTint}
+            label={item.repeatsCount > 0 ? formatNumber(item.repeatsCount) : ''} s={s}
+            onPress={() => onPostAction(item.id, 'repeatedBy', item.repeated)}
+          />
+        </View>
         <PostCardActionButton
-          iconComponent={(props) => <MaterialCommunityIcons name={item.liked ? 'heart' : 'heart-outline'} {...props} />}
-          isActive={item.liked} activeColor="#FF4B4B" inactiveColor={colors.iconTint}
-          textSub={colors.textSub} label="Like" s={s}
-          onPress={() => onPostAction(item.id, 'likedBy', item.liked)}
-        />
-        <PostCardActionButton
-          iconComponent={(props) => <MaterialCommunityIcons name="comment-outline" {...props} />}
-          label="Comment" inactiveColor={colors.iconTint}
-          textSub={colors.textSub} s={s}
-          onPress={() => onCommentPress(item.id)}
-        />
-        <PostCardActionButton
-          iconComponent={(props) => <MaterialCommunityIcons name={item.repeated ? 'repeat' : 'repeat-variant'} {...props} />}
-          isActive={item.repeated} activeColor="#00BA7C" inactiveColor={colors.iconTint}
-          textSub={colors.textSub} label="Repost" s={s}
-          onPress={() => onPostAction(item.id, 'repeatedBy', item.repeated)}
-        />
-        <PostCardActionButton
-          iconComponent={(props) => <MaterialIcons name="share" {...props} />}
-          label="Send" inactiveColor={colors.iconTint}
-          textSub={colors.textSub} s={s}
+          iconComponent={(props) => (
+            <Image
+              source={require('../../assets/images/Send.png')}
+              style={{ width: props.size, height: props.size, tintColor: props.color }}
+              resizeMode="contain"
+            />
+          )}
+          inactiveColor={colors.iconTint}
+          s={s}
           onPress={() => {}}
         />
       </View>
@@ -741,6 +659,7 @@ function SavedPostCard({ item, isExpanded, hasMedia, displayContent, colors, onT
         item={item}
         colors={colors}
         s={s}
+        hasMedia={hasMedia}
         onPostAction={onPostAction}
         onCommentPress={onCommentPress}
       />
@@ -777,25 +696,27 @@ const getPostCardStyles = (colors) => StyleSheet.create({
   moreText: { color: colors.textSub, fontSize: 14, fontWeight: '600' },
   mediaWrapper: { width: '100%', aspectRatio: 1.2, backgroundColor: colors.background },
   mediaContent: { width: '100%', height: '100%' },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-  },
-  statsLeft: { flexDirection: 'row', alignItems: 'center' },
-  reactionIcon: { width: 16, height: 16, marginRight: 6, resizeMode: 'contain' },
-  statText: { color: colors.textSub, fontSize: 12 },
   divider: { height: 1, backgroundColor: colors.border, marginHorizontal: 15 },
   cardActions: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 10,
     paddingVertical: 8,
   },
-  actionButton: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 10 },
-  actionIconContainer: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
+  cardActionsLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  actionIconContainer: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+  actionIcon: { width: 20, height: 20, resizeMode: 'contain' },
   actionLabel: { color: colors.textSub, fontSize: 13, marginLeft: 6, fontWeight: '600' },
 });
 
@@ -1236,7 +1157,11 @@ export default function ProfilePage() {
             >
               <Text style={styles.nameText} numberOfLines={1}>{userData.fullName || 'İsimsiz'}</Text>
             </BlurView>
-            <Text style={styles.jobText} numberOfLines={1}>{userData.profession || 'Meslek yok'}</Text>
+            <Text style={styles.jobText} numberOfLines={1}>
+              {userData.degree || userData.branch
+                ? (userData.branch ? `Öğrenci • ${userData.branch}` : 'Öğrenci')
+                : (userData.profession || 'Meslek yok')}
+            </Text>
             {!!userData.userLocation && (
               <View style={[styles.locationRow, { justifyContent: 'space-between' }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
@@ -1554,53 +1479,6 @@ export default function ProfilePage() {
 
 // ─── Sheet Styles ──────────────────────────────────────────────────────────────
 const sheetStyles = StyleSheet.create({
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-  },
-  sheet: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: SHEET_HEIGHT,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    overflow: 'hidden',
-  },
-  handle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#ccc',
-    alignSelf: 'center',
-    marginTop: 10,
-    marginBottom: 6,
-  },
-  sheetHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    gap: 12,
-  },
-  sheetTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 2,
-  },
-  sheetDate: {
-    fontSize: 12,
-  },
-  closeBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 2,
-  },
   githubBtn: {
     flexDirection: 'row',
     alignItems: 'center',

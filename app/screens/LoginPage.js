@@ -7,8 +7,9 @@ import {
   Easing,
   Image,
   Keyboard,
-  KeyboardAvoidingView, Modal, Platform,
+  KeyboardAvoidingView, Platform,
   Pressable,
+  StatusBar,
   StyleSheet,
   Text, TextInput,
   View
@@ -72,6 +73,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import Toast from 'react-native-toast-message';
 import { useDispatch, useSelector } from 'react-redux';
 import LoginSkeleton from '../skeleton/LoginSkeleton';
+import BottomSheet from '../components/BottomSheet';
 
 
 import { setAuth, setUserId, setProfileStep } from '../redux/userSlice';
@@ -145,8 +147,6 @@ const LoginPage = () => {
   // BottomSheet state
   const [sheetVisible, setSheetVisible] = useState(false);
   const [pendingResume, setPendingResume] = useState(null); // { docId, step, fullName }
-  const sheetAnim = useRef(new Animated.Value(300)).current;
-  const backdropAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (profileStep && reduxUserId) {
@@ -157,17 +157,11 @@ const LoginPage = () => {
   const openSheet = (data) => {
     setPendingResume(data);
     setSheetVisible(true);
-    Animated.parallel([
-      Animated.spring(sheetAnim, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }),
-      Animated.timing(backdropAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
-    ]).start();
   };
 
   const closeSheet = () => {
-    Animated.parallel([
-      Animated.timing(sheetAnim, { toValue: 300, duration: 220, useNativeDriver: true }),
-      Animated.timing(backdropAnim, { toValue: 0, duration: 220, useNativeDriver: true }),
-    ]).start(() => { setSheetVisible(false); setPendingResume(null); });
+    setSheetVisible(false);
+    setPendingResume(null);
   };
 
   const handleResumeYes = async () => {
@@ -399,8 +393,13 @@ const LoginPage = () => {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
+      <StatusBar
+        barStyle={themeMode === 'light' ? 'dark-content' : 'light-content'}
+        backgroundColor="transparent"
+        translucent={true}
+      />
       <ParticleBackground color={themeMode === 'dark' ? 'rgba(100,149,237,0.45)' : 'rgba(80,80,180,0.35)'} />
-      <View style={[styles.container, { paddingBottom: keyboardHeight }]}>
+      <View style={[styles.container, { paddingBottom: Platform.OS === 'ios' ? keyboardHeight : 0 }]}>
         <View style={[styles.content, { paddingTop: insets.top }]}>
           <View style={styles.topSection}>
             {!isKeyboardVisible && (
@@ -472,27 +471,17 @@ const LoginPage = () => {
 
 
       {/* BottomSheet Modal */}
-      <Modal transparent visible={sheetVisible} animationType="none" onRequestClose={closeSheet}>
-        <Animated.View style={[bsStyles.backdrop, { opacity: backdropAnim }]}>
-          <Pressable style={{ flex: 1 }} onPress={closeSheet} />
-        </Animated.View>
-        <Animated.View style={[bsStyles.sheet, { backgroundColor: colors.cardBackground, borderColor: colors.border, transform: [{ translateY: sheetAnim }] }]}>
-          <View style={bsStyles.handle} />
-          <View style={[bsStyles.iconCircle, { backgroundColor: colors.primary + '22' }]}>
-            <Text style={{ fontSize: 32 }}>⏱️</Text>
-          </View>
-          <Text style={[bsStyles.title, { color: colors.textMain }]}>Kaldığın Yerden Devam Et</Text>
-          <Text style={[bsStyles.subtitle, { color: colors.textSub }]}>
-            Profil tamamlama işleminiz yarım kalmış. Devam etmek ister misiniz?
-          </Text>
-          <Pressable style={[bsStyles.btnYes, { backgroundColor: colors.primary }]} onPress={handleResumeYes}>
-            <Text style={bsStyles.btnYesText}>Evet, Devam Et</Text>
-          </Pressable>
-          <Pressable style={[bsStyles.btnNo, { borderColor: colors.border }]} onPress={handleResumeNo}>
-            <Text style={[bsStyles.btnNoText, { color: colors.textSub }]}>Hayır, Baştan Başla</Text>
-          </Pressable>
-        </Animated.View>
-      </Modal>
+      <BottomSheet visible={sheetVisible} onClose={closeSheet} title="Kaldığın Yerden Devam Et" subtitle="Profil tamamlama işleminiz yarım kalmış. Devam etmek ister misiniz?">
+        <View style={bsStyles.iconCircle}>
+          <Text style={{ fontSize: 32 }}>⏱️</Text>
+        </View>
+        <Pressable style={[bsStyles.btnYes, { backgroundColor: colors.primary }]} onPress={handleResumeYes}>
+          <Text style={bsStyles.btnYesText}>Evet, Devam Et</Text>
+        </Pressable>
+        <Pressable style={[bsStyles.btnNo, { borderColor: colors.border }]} onPress={handleResumeNo}>
+          <Text style={[bsStyles.btnNoText, { color: colors.textSub }]}>Hayır, Baştan Başla</Text>
+        </Pressable>
+      </BottomSheet>
     </View>
   );
 };
@@ -528,52 +517,15 @@ const getStyles = (colors) => StyleSheet.create({
 
 
 const bsStyles = StyleSheet.create({
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-  },
-  sheet: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    paddingHorizontal: 24,
-    paddingBottom: 36,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    alignItems: 'center',
-    elevation: 20,
-  },
-  handle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'rgba(150,150,150,0.4)',
-    marginBottom: 20,
-  },
   iconCircle: {
     width: 72,
     height: 72,
     borderRadius: 36,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 14,
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 28,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(0,102,255,0.13)',
+    marginBottom: 24,
   },
   btnYes: {
     width: '100%',
@@ -582,6 +534,7 @@ const bsStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 12,
+    paddingHorizontal: 24,
   },
   btnYesText: {
     color: 'white',
@@ -595,10 +548,12 @@ const bsStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
+    paddingHorizontal: 24,
+    marginBottom: 24,
   },
   btnNoText: {
-    fontWeight: '600',
-    fontSize: 15,
+    fontWeight: '700',
+    fontSize: 16,
   },
 });
 

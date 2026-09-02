@@ -78,46 +78,38 @@ const SelectionModal = ({ isVisible, onClose, onSelectOption, userId, currentRou
                         <View style={styles.modalInnerContainer}>
                             <View style={styles.modalContent}>
                                 <View style={styles.handleBar} />
-
-                                {}
-                                <TouchableOpacity
+                                <Pressable
                                     style={styles.optionRow}
                                     activeOpacity={0.7}
                                     onPress={() => handleOptionPress({ name: 'Gönderi', screen: 'PhotoSharePage', params: { userId: userId, previousScreen: currentRouteName } })}
                                 >
-                                    <Image source={require('../../assets/images/Post.png')} style={[styles.choiceIcon, { tintColor: colors.primary }]} />
+                                    <Image source={require('../../assets/images/Post.png')} style={[styles.choiceIcon, { tintColor: colors.textSub }]} />
                                     <Text style={styles.optionText}>Gönderi</Text>
-                                </TouchableOpacity>
-
-                                {}
-                                <TouchableOpacity
+                                </Pressable>
+                                <Pressable
                                     style={styles.optionRow}
                                     activeOpacity={0.7}
                                     onPress={() => handleOptionPress({ name: 'Proje', screen: 'ProjectPage' })}
                                 >
-                                    <Image source={require('../../assets/images/project.png')} style={[styles.choiceIcon, { tintColor: colors.primary }]} />
+                                    <Image source={require('../../assets/images/project.png')} style={[styles.choiceIcon, { tintColor: colors.textSub }]} />
                                     <Text style={styles.optionText}>Proje</Text>
-                                </TouchableOpacity>
-
-                                {}
-                                <TouchableOpacity
+                                </Pressable>
+                                <Pressable
                                     style={styles.optionRow}
                                     activeOpacity={0.7}
                                     onPress={() => handleOptionPress({ name: 'İş İlanı', screen: 'JobsPostingPage' })}
                                 >
-                                    <Image source={require('../../assets/images/IsIlanlari.png')} style={[styles.choiceIcon, { tintColor: colors.primary }]} />
+                                    <Image source={require('../../assets/images/IsIlanlari.png')} style={[styles.choiceIcon, { tintColor: colors.textSub }]} />
                                     <Text style={styles.optionText}>İş İlanı</Text>
-                                </TouchableOpacity>
-
-                                {}
-                                <TouchableOpacity
+                                </Pressable>
+                                <Pressable
                                     style={styles.endOptionRow}
                                     activeOpacity={0.7}
                                     onPress={() => handleOptionPress({ name: 'Blog', screen: 'BlogPage' })}
                                 >
-                                    <Image source={require('../../assets/images/Blog.png')} style={[styles.choiceIcon, { tintColor: colors.primary }]} />
+                                    <Image source={require('../../assets/images/Blog.png')} style={[styles.choiceIcon, { tintColor: colors.textSub }]} />
                                     <Text style={styles.optionText}>Blog</Text>
-                                </TouchableOpacity>
+                                </Pressable>
                             </View>
                         </View>
 

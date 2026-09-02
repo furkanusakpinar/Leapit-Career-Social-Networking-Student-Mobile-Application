@@ -322,7 +322,7 @@ const getStyles = (colors) => StyleSheet.create({
         textTransform: 'uppercase',
     },
     linkRow: { flexDirection: 'row', alignItems: 'center' },
-    textInput: { color: colors.textMain, fontSize: 15, paddingVertical: 4 },
+    textInput: { color: colors.textMain, fontSize: 16, paddingVertical: 4 },
     textArea: { minHeight: 100, textAlignVertical: 'top' },
     codeArea: {
         minHeight: 120,

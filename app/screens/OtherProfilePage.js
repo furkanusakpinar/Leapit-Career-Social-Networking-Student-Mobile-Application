@@ -1,19 +1,18 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
   Image,
   StyleSheet,
-  ToastAndroid,
   Pressable,
   RefreshControl,
   ActivityIndicator,
   Alert,
   Dimensions,
-  Modal,
   TouchableOpacity,
   Linking,
   ScrollView,
+  Animated as RNAnimated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
@@ -40,6 +39,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { getCompanyLogoUri } from '../utils/getCompanyLogoUri';
 import { getSchoolLogoUri } from '../utils/getSchoolLogoUri';
 import axios from 'axios';
+import Toast from 'react-native-toast-message';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import moment from 'moment';
 import { fetchReadmeFromGithub } from '../utils/github';
@@ -48,13 +48,13 @@ import Animated, {
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
-  withTiming,
 } from 'react-native-reanimated';
 import { WebView } from 'react-native-webview';
 import { BlurView } from 'expo-blur';
 import VideoPlayer from '../components/VideoPlayer';
 import CommentModal from '../components/CommentModal';
 import PostOptionsMenu from '../components/PostOptionsMenu';
+import BottomSheet from '../components/BottomSheet';
 import { deleteFromCloudinary } from '../utils/cloudinary';
 
 const BACKEND_URL = 'http://141.11.109.234:3000';
@@ -79,6 +79,90 @@ const formatCount = (num) => {
   if (num >= 1000000) return (num / 1000000).toFixed(1).replace(/\.0$/, '') + ' M';
   if (num >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + ' B';
   return String(num);
+};
+
+const truncateString = (str, maxLength) => {
+  if (!str) return '';
+  return str.length <= maxLength ? str : str.substring(0, maxLength - 3) + '...';
+};
+
+const PostCardActionButton = ({ iconComponent, onPress, isActive, activeColor, inactiveColor, label, s }) => {
+  const scaleAnim = useRef(new RNAnimated.Value(1)).current;
+  const handlePress = () => {
+    RNAnimated.sequence([
+      RNAnimated.timing(scaleAnim, { toValue: 0.8, duration: 100, useNativeDriver: true }),
+      RNAnimated.spring(scaleAnim, { toValue: 1, friction: 3, useNativeDriver: true }),
+    ]).start();
+    onPress();
+  };
+  return (
+    <Pressable style={s.actionButton} onPress={handlePress}>
+      <RNAnimated.View style={[s.actionIconContainer, { transform: [{ scale: scaleAnim }] }]}>
+        {iconComponent({ color: isActive ? activeColor : inactiveColor, size: 24 })}
+      </RNAnimated.View>
+      {label && <Text style={s.actionLabel}>{label}</Text>}
+    </Pressable>
+  );
+};
+
+const PostCardActions = ({ item, colors, s, onPostAction, onCommentPress, hasMedia }) => {
+  const formatNumber = (num) => {
+    if (num >= 1000000) return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+    if (num >= 1000) return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+    return num || 0;
+  };
+
+  return (
+    <View>
+      {!hasMedia && <View style={s.divider} />}
+      <View style={s.cardActions}>
+        <View style={s.cardActionsLeft}>
+          <PostCardActionButton
+            iconComponent={(props) => <MaterialCommunityIcons name={item.liked ? 'heart' : 'heart-outline'} {...props} />}
+            isActive={item.liked} activeColor="#FF4B4B" inactiveColor={colors.iconTint}
+            label={item.likesCount > 0 ? formatNumber(item.likesCount) : ''} s={s}
+            onPress={() => onPostAction(item.id, 'likedBy', item.liked)}
+          />
+          <PostCardActionButton
+            iconComponent={(props) => (
+              <Image
+                source={require('../../assets/images/Comment.png')}
+                style={{ width: props.size, height: props.size, tintColor: props.color }}
+                resizeMode="contain"
+              />
+            )}
+            inactiveColor={colors.iconTint}
+            label={item.commentsCount > 0 ? formatNumber(item.commentsCount) : ''} s={s}
+            onPress={() => onCommentPress(item.id)}
+          />
+          <PostCardActionButton
+            iconComponent={(props) => (
+              <Image
+                source={require('../../assets/images/Repost.png')}
+                style={{ width: props.size, height: props.size, tintColor: props.color }}
+                resizeMode="contain"
+              />
+            )}
+            isActive={item.repeated} activeColor="#00BA7C" inactiveColor={colors.iconTint}
+            label={item.repeatsCount > 0 ? formatNumber(item.repeatsCount) : ''} s={s}
+            onPress={() => onPostAction(item.id, 'repeatedBy', item.repeated)}
+          />
+        </View>
+        <PostCardActionButton
+          iconComponent={(props) => (
+            <Image
+              source={require('../../assets/images/Send.png')}
+              style={{ width: props.size, height: props.size, tintColor: props.color }}
+              resizeMode="contain"
+            />
+          )}
+          inactiveColor={colors.iconTint}
+          s={s}
+          onPress={() => {}}
+        />
+      </View>
+    </View>
+  );
 };
 
 const buildReadmeHtml = (content, isDark, colors) => {
@@ -175,30 +259,13 @@ const buildReadmeHtml = (content, isDark, colors) => {
 };
 
 function ProjectSheet({ project, visible, onClose, colors, isDark }) {
-  const translateY = useSharedValue(SHEET_HEIGHT);
-  const opacity = useSharedValue(0);
-  const insets = useSafeAreaInsets();
-  const [show, setShow] = useState(false);
   const [readmeContent, setReadmeContent] = useState((project?.readme || project?.content) || '');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (visible) {
-      setShow(true);
-      opacity.value = withTiming(1, { duration: 220 });
-      translateY.value = withTiming(0, { duration: 320 });
-    } else {
-      opacity.value = withTiming(0, { duration: 200 });
-      translateY.value = withTiming(SHEET_HEIGHT, { duration: 280 }, () => {
-        runOnJS(setShow)(false);
-      });
-    }
-  }, [visible, opacity, translateY]);
-
-  useEffect(() => {
     if (visible && project) {
       setReadmeContent(project.readme || project.content || '');
-      
+
       if (project.githubUrl) {
         setLoading(true);
         fetchReadmeFromGithub(project.githubUrl)
@@ -213,50 +280,18 @@ function ProjectSheet({ project, visible, onClose, colors, isDark }) {
     }
   }, [visible, project]);
 
-  const sheetStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-  }));
-  const backdropStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-  }));
-
-  if (!show || !project) return null;
+  if (!project) return null;
 
   const readmeHtml = buildReadmeHtml(readmeContent || 'İçerik bulunamadı.', isDark, colors);
 
   return (
-    <Modal transparent animationType="none" statusBarTranslucent>
-      {/* Backdrop */}
-      <Animated.View style={[sheetStyles.backdrop, backdropStyle]}>
-        <Pressable style={{ flex: 1 }} onPress={onClose} />
-      </Animated.View>
-
-      {/* Sheet */}
-      <Animated.View
-        style={[
-          sheetStyles.sheet,
-          { backgroundColor: colors.cardBackground, paddingBottom: insets.bottom + 16 },
-          sheetStyle,
-        ]}
-      >
-        {/* Handle */}
-        <View style={sheetStyles.handle} />
-
-        {/* Header */}
-        <View style={[sheetStyles.sheetHeader, { borderBottomColor: colors.border }]}>
-          <View style={{ flex: 1 }}>
-            <Text style={[sheetStyles.sheetTitle, { color: colors.textMain }]} numberOfLines={2}>
-              {project.title || 'Proje Detayı'}
-            </Text>
-            <Text style={[sheetStyles.sheetDate, { color: colors.textSub }]}>
-              {formatTimeAgo(project.createdAt)}
-            </Text>
-          </View>
-          <TouchableOpacity onPress={onClose} style={[sheetStyles.closeBtn, { backgroundColor: colors.background }]}>
-            <Text style={{ color: colors.textMain, fontSize: 16 }}>✕</Text>
-          </TouchableOpacity>
-        </View>
-
+    <BottomSheet
+      visible={visible}
+      onClose={onClose}
+      title={project.title || 'Proje Detayı'}
+      subtitle={formatTimeAgo(project.createdAt)}
+      contentStyle={{ height: SHEET_HEIGHT }}
+    >
         {/* GitHub Link */}
         {!!project.githubUrl && (
           <TouchableOpacity
@@ -333,8 +368,7 @@ function ProjectSheet({ project, visible, onClose, colors, isDark }) {
             </ScrollView>
           </View>
         )}
-      </Animated.View>
-    </Modal>
+    </BottomSheet>
   );
 }
 
@@ -379,6 +413,7 @@ export default function OtherProfilePage() {
   const isDark = themeMode === 'dark';
   const colors = isDark ? darkTheme : lightTheme;
   const styles = getStyles(colors, isDark);
+  const postCardStyles = getPostCardStyles(colors);
 
   const isOwnProfile = profileUserId === currentUserId;
 
@@ -455,10 +490,20 @@ export default function OtherProfilePage() {
         setFollowingCount(followingSnap.size);
       } else {
         setUserData(null);
+        Toast.show({
+          type: 'error',
+          text1: 'Kullanıcı bulunamadı',
+          position: 'bottom',
+        });
       }
     } catch (e) {
       console.error('User fetch error:', e);
       setUserData(null);
+      Toast.show({
+        type: 'error',
+        text1: 'Kullanıcı bulunamadı',
+        position: 'bottom',
+      });
     }
     setLoading(false);
   }, [profileUserId]);
@@ -569,13 +614,16 @@ export default function OtherProfilePage() {
 
         data = await Promise.all(filteredDocs.map(async d => {
           const postData = d.data();
+          const uData = userData || {};
           return {
             id: d.id,
             ...postData,
-            profileImageUrl: userData?.profileImageUrl || null,
-            userName: userData?.fullName || 'İsimsiz',
+            profileImageUrl: uData.profileImageUrl || null,
+            userName: uData.fullName || 'İsimsiz',
+            details: [uData.company, uData.job].filter(Boolean).join(' | '),
             liked: postData.likedBy?.includes(currentUserId) || false,
             repeated: postData.repeatedBy?.includes(currentUserId) || false,
+            saved: postData.savedBy?.includes(currentUserId) || false,
             likesCount: postData.likedBy?.length || 0,
             repeatsCount: postData.repeatedBy?.length || 0,
             commentsCount: postData.comments?.length || 0,
@@ -618,11 +666,11 @@ export default function OtherProfilePage() {
 
   const handleFollowToggle = async () => {
     if (!currentUserId) {
-      ToastAndroid.show('Takip etmek için giriş yapmalısınız.', ToastAndroid.LONG);
+      Toast.show({ type: 'info', text1: 'Takip etmek için giriş yapmalısınız.' });
       return;
     }
     if (currentUserId === profileUserId) {
-      ToastAndroid.show('Kendi profilinizi takip edemezsiniz.', ToastAndroid.LONG);
+      Toast.show({ type: 'info', text1: 'Kendi profilinizi takip edemezsiniz.' });
       return;
     }
 
@@ -667,7 +715,7 @@ export default function OtherProfilePage() {
 
         setIsFollowing(false);
         setFollowersCount(prev => Math.max(0, prev - 1));
-        ToastAndroid.show(`${userData.fullName} adlı kişiyi takip etmeyi bıraktınız.`, ToastAndroid.LONG);
+        Toast.show({ type: 'success', text1: `${userData.fullName} adlı kişiyi takip etmeyi bıraktınız.` });
       } else {
         await withTimeout(setDoc(followerDocRef, {
           followerId: currentUserId,
@@ -704,12 +752,12 @@ export default function OtherProfilePage() {
 
         setIsFollowing(true);
         setFollowersCount(prev => prev + 1);
-        ToastAndroid.show(`${userData.fullName} adlı kişiyi takip etmeye başladınız.`, ToastAndroid.LONG);
+        Toast.show({ type: 'success', text1: `${userData.fullName} adlı kişiyi takip etmeye başladınız.` });
       }
       fetchUser();
     } catch (e) {
       console.error('Takip işlemi hatası:', e);
-      ToastAndroid.show('Takip işlemi sırasında bir sorun oluştu.', ToastAndroid.LONG);
+      Toast.show({ type: 'error', text1: 'Takip işlemi sırasında bir sorun oluştu.' });
     } finally {
       setFollowLoading(false);
     }
@@ -726,11 +774,11 @@ export default function OtherProfilePage() {
 
   const sendNewConnectionRequest = async () => {
     if (!currentUserId || !userData) {
-      ToastAndroid.show('Hata: Bağlantı isteği göndermek için giriş yapmalısınız veya profiliniz eksik.', ToastAndroid.LONG);
+      Toast.show({ type: 'error', text1: 'Hata: Bağlantı isteği göndermek için giriş yapmalısınız veya profiliniz eksik.' });
       return;
     }
     if (currentUserId === profileUserId) {
-      ToastAndroid.show('Kendi profilinize bağlantı isteği gönderemezsiniz.', ToastAndroid.LONG);
+      Toast.show({ type: 'info', text1: 'Kendi profilinize bağlantı isteği gönderemezsiniz.' });
       return;
     }
 
@@ -749,11 +797,11 @@ export default function OtherProfilePage() {
         timestamp: serverTimestamp(),
       });
 
-      ToastAndroid.show('Bağlantı isteğiniz başarıyla gönderildi!', ToastAndroid.LONG);
+      Toast.show({ type: 'success', text1: 'Bağlantı isteğiniz başarıyla gönderildi!' });
       setIsConnectionPending(true);
     } catch (error) {
       console.error('Bağlantı isteği gönderilirken hata oluştu:', error.message);
-      ToastAndroid.show('Bağlantı isteği oluşturulurken bir hata oluştu: ' + error.message, ToastAndroid.LONG);
+      Toast.show({ type: 'error', text1: 'Bağlantı isteği oluşturulurken bir hata oluştu: ' + error.message });
     } finally {
       setConnectionActionLoading(false);
     }
@@ -761,7 +809,7 @@ export default function OtherProfilePage() {
 
   const withdrawConnectionRequest = async () => {
     if (!currentUserId || !profileUserId) {
-      ToastAndroid.show('Hata: Bağlantı isteğini geri çekmek için giriş yapmalısınız.', ToastAndroid.LONG);
+      Toast.show({ type: 'error', text1: 'Hata: Bağlantı isteğini geri çekmek için giriş yapmalısınız.' });
       return;
     }
     setConnectionActionLoading(true);
@@ -780,14 +828,14 @@ export default function OtherProfilePage() {
             status: 'canceled'
           });
         }
-        ToastAndroid.show('Bağlantı isteği başarıyla geri çekildi.', ToastAndroid.LONG);
+        Toast.show({ type: 'success', text1: 'Bağlantı isteği başarıyla geri çekildi.' });
         setIsConnectionPending(false); 
       } else {
-        ToastAndroid.show('İptal edilecek bekleyen bir bağlantı isteği bulunamadı.', ToastAndroid.LONG);
+        Toast.show({ type: 'info', text1: 'İptal edilecek bekleyen bir bağlantı isteği bulunamadı.' });
       }
     } catch (error) {
       console.error('Bağlantı isteği geri çekilirken hata oluştu:', error.message);
-      ToastAndroid.show('Bağlantı isteği geri çekilirken bir hata oluştu: ' + error.message, ToastAndroid.LONG);
+      Toast.show({ type: 'error', text1: 'Bağlantı isteği geri çekilirken bir hata oluştu: ' + error.message });
     } finally {
       setConnectionActionLoading(false);
     }
@@ -836,11 +884,68 @@ export default function OtherProfilePage() {
 
   if (!userData) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.notFoundText}>Kullanıcı bulunamadı.</Text>
-        <Pressable onPress={() => navigation.goBack()} style={styles.goBackButton}>
-          <Text style={styles.goBackButtonText}>Geri Dön</Text>
-        </Pressable>
+      <View style={styles.container}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 40 }}
+        >
+          <View style={[styles.header, { paddingTop: insets.top }]}>
+            <Pressable onPress={() => navigation.goBack()} style={styles.headerBtn}>
+              <Image source={require('../../assets/images/back.png')} style={styles.iconBack} />
+            </Pressable>
+          </View>
+
+          <View style={styles.skeletonBanner} />
+
+          <View style={styles.profileSection}>
+            <View style={styles.skeletonAvatarWrapper}>
+              <View style={styles.skeletonAvatar} />
+            </View>
+            <View style={styles.nameContainer}>
+              <View style={[styles.skeletonLine, { width: 120, height: 18, marginBottom: 8 }]} />
+              <View style={[styles.skeletonLine, { width: 90, height: 13, marginBottom: 6 }]} />
+              <View style={[styles.skeletonLine, { width: 70, height: 13 }]} />
+            </View>
+          </View>
+
+          <View style={styles.statsContainer}>
+            <View style={styles.statsLeft}>
+              <View style={styles.statItem}>
+                <View style={[styles.skeletonLine, { width: 40, height: 16 }]} />
+                <View style={[styles.skeletonLine, { width: 30, height: 11, marginTop: 4 }]} />
+              </View>
+              <View style={styles.statItem}>
+                <View style={[styles.skeletonLine, { width: 40, height: 16 }]} />
+                <View style={[styles.skeletonLine, { width: 30, height: 11, marginTop: 4 }]} />
+              </View>
+            </View>
+            <View style={styles.companyInfo}>
+              <View style={[styles.skeletonLine, { flex: 1, height: 13 }]} />
+            </View>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={[styles.paddingArea, { paddingTop: 6, paddingBottom: 6 }]}>
+            <View style={[styles.skeletonLine, { width: 80, height: 14, marginBottom: 10 }]} />
+            <View style={[styles.skeletonLine, { width: '100%', height: 13, marginBottom: 6 }]} />
+            <View style={[styles.skeletonLine, { width: '85%', height: 13 }]} />
+          </View>
+
+          <View style={styles.buttonContainer}>
+            <View style={[styles.skeletonButton, { flex: 1, height: 46 }]} />
+            <View style={[styles.skeletonButton, { flex: 1, height: 46 }]} />
+            <View style={[styles.skeletonButton, { flex: 1, height: 46 }]} />
+          </View>
+
+          <View style={styles.tabBar}>
+            {['Blog', 'Projeler', 'Postlar'].map((tab, i) => (
+              <View key={i} style={styles.tabItem}>
+                <View style={[styles.skeletonLine, { width: 50, height: 15 }]} />
+              </View>
+            ))}
+          </View>
+        </ScrollView>
       </View>
     );
   }
@@ -914,7 +1019,11 @@ export default function OtherProfilePage() {
             >
               <Text style={styles.nameText} numberOfLines={1}>{userData.fullName || 'İsimsiz'}</Text>
             </BlurView>
-            <Text style={styles.jobText} numberOfLines={1}>{userData.profession || 'Meslek yok'}</Text>
+            <Text style={styles.jobText} numberOfLines={1}>
+              {userData.degree || userData.branch
+                ? (userData.branch ? `Öğrenci • ${userData.branch}` : 'Öğrenci')
+                : (userData.profession || 'Meslek yok')}
+            </Text>
             {!!userData.userLocation && (
               <View style={[styles.locationRow, { justifyContent: 'space-between' }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
@@ -1088,7 +1197,7 @@ export default function OtherProfilePage() {
                 ? item.content.substring(0, 100) + '...'
                 : item.content;
               return (
-                <View key={item.id} style={[styles.postCard]}>
+                <View key={item.id} style={styles.postCard}>
                   <View style={styles.postCardHeader}>
                     <Image
                       source={
@@ -1100,11 +1209,12 @@ export default function OtherProfilePage() {
                     />
                     <View style={styles.postCardHeaderText}>
                       <Text style={styles.postCardName}>{item.userName}</Text>
-                      <Text style={styles.postCardTime}>{moment(item.createdAt?.seconds * 1000).fromNow()} • 🌎</Text>
+                      {item.details?.length > 0 && <Text style={styles.postCardDetails}>{truncateString(item.details, 50)}</Text>}
+                      <Text style={styles.postCardTime}>{moment(item.createdAt?.seconds * 1000).fromNow()}</Text>
                     </View>
-                    <TouchableOpacity style={styles.cardOptionsBtn} onPress={(event) => handleOptionsPress(item, event.nativeEvent.pageY)}>
-                      <Text style={styles.cardOptionsText}>···</Text>
-                    </TouchableOpacity>
+                    <Pressable style={styles.optionsContainer} onPress={(event) => handleOptionsPress(item, event.nativeEvent.pageY)}>
+                      <Text style={styles.optionsText}>···</Text>
+                    </Pressable>
                   </View>
 
                   {displayContent ? (
@@ -1130,41 +1240,14 @@ export default function OtherProfilePage() {
                     </View>
                   )}
 
-                  <View style={styles.postCardActions}>
-                    <TouchableOpacity
-                      style={styles.postActionBtn}
-                      onPress={() => handlePostAction(item.id, 'likedBy', item.liked)}
-                    >
-                      <Image
-                        source={item.liked ? require('../../assets/images/RedLike.png') : require('../../assets/images/Heart.png')}
-                        style={[styles.postActionIcon, { tintColor: item.liked ? '#FF4B4B' : colors.iconTint }]}
-                      />
-                      <Text style={[styles.postActionLabel, item.liked && { color: '#FF4B4B' }]}>
-                        {item.likesCount > 0 ? item.likesCount : ''} Beğeni
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.postActionBtn}
-                      onPress={() => { setActivePostId(item.id); setCommentModalVisible(true); }}
-                    >
-                      <Image source={require('../../assets/images/Comment.png')} style={[styles.postActionIcon, { tintColor: colors.iconTint }]} />
-                      <Text style={styles.postActionLabel}>Yorum</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.postActionBtn}
-                      onPress={() => handlePostAction(item.id, 'repeatedBy', item.repeated)}
-                    >
-                      <Image
-                        source={item.repeated ? require('../../assets/images/PinkRepeat.png') : require('../../assets/images/Repeat.png')}
-                        style={[styles.postActionIcon, { tintColor: item.repeated ? '#00BA7C' : colors.iconTint }]}
-                      />
-                      <Text style={[styles.postActionLabel, item.repeated && { color: '#00BA7C' }]}>Repost</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.postActionBtn}>
-                      <Image source={require('../../assets/images/Share.png')} style={[styles.postActionIcon, { tintColor: colors.iconTint }]} />
-                      <Text style={styles.postActionLabel}>Gönder</Text>
-                    </TouchableOpacity>
-                  </View>
+                  <PostCardActions
+                    item={item}
+                    colors={colors}
+                    s={postCardStyles}
+                    hasMedia={hasMedia}
+                    onPostAction={handlePostAction}
+                    onCommentPress={(id) => { setActivePostId(id); setCommentModalVisible(true); }}
+                  />
                 </View>
               );
             }
@@ -1231,53 +1314,6 @@ export default function OtherProfilePage() {
 
 // ─── Sheet Styles (Copied from ProfilePage.js) ────────────────────────────────
 const sheetStyles = StyleSheet.create({
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-  },
-  sheet: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: SHEET_HEIGHT,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    overflow: 'hidden',
-  },
-  handle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#ccc',
-    alignSelf: 'center',
-    marginTop: 10,
-    marginBottom: 6,
-  },
-  sheetHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    gap: 12,
-  },
-  sheetTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 2,
-  },
-  sheetDate: {
-    fontSize: 12,
-  },
-  closeBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 2,
-  },
   githubBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1455,6 +1491,7 @@ const getStyles = (colors, isDark) => StyleSheet.create({
   },
   postCardHeaderText: { flex: 1, justifyContent: 'center' },
   postCardName: { color: colors.textMain, fontSize: 15, fontWeight: '700' },
+  postCardDetails: { color: colors.textSub, fontSize: 12, marginTop: 2 },
   postCardTime: { color: colors.textSub, fontSize: 11, marginTop: 2 },
   postCardContent: { paddingHorizontal: 15, paddingBottom: 12 },
   postCardText: { color: colors.textMain, fontSize: 14, lineHeight: 21 },
@@ -1465,22 +1502,8 @@ const getStyles = (colors, isDark) => StyleSheet.create({
     backgroundColor: colors.background,
   },
   postMediaContent: { width: '100%', height: '100%' },
-  postCardActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  postActionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-  },
-  postActionIcon: { width: 20, height: 20, resizeMode: 'contain' },
-  postActionLabel: { color: colors.textSub, fontSize: 13, marginLeft: 6, fontWeight: '600' },
+  optionsContainer: { padding: 5, paddingRight: 0 },
+  optionsText: { color: colors.textSub, fontSize: 20, fontWeight: 'bold', marginTop: -15 },
 
   // OtherProfile specific connection/follow button styling
   buttonContainer: {
@@ -1571,6 +1594,34 @@ const getStyles = (colors, isDark) => StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.2,
   },
+  skeletonBanner: {
+    width: '100%',
+    height: 190,
+    backgroundColor: colors.border,
+  },
+  skeletonAvatarWrapper: {
+    width: 90,
+    height: 90,
+    borderRadius: 15,
+    overflow: 'hidden',
+    backgroundColor: colors.background,
+    borderWidth: 3,
+    borderColor: colors.background,
+  },
+  skeletonAvatar: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: colors.border,
+  },
+  skeletonLine: {
+    height: 13,
+    borderRadius: 7,
+    backgroundColor: colors.border,
+  },
+  skeletonButton: {
+    borderRadius: 12,
+    backgroundColor: colors.border,
+  },
   notFoundText: {
     color: '#FF6347',
     textAlign: 'center',
@@ -1607,4 +1658,58 @@ const getStyles = (colors, isDark) => StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+});
+
+// ─── HomePage-style Post Card styles ──────────────────────────────────────────
+const getPostCardStyles = (colors) => StyleSheet.create({
+  card: {
+    backgroundColor: colors.cardBackground,
+    marginHorizontal: 10,
+    marginBottom: 12,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 15,
+    paddingTop: 15,
+    paddingBottom: 10,
+  },
+  cardProfil: { width: 44, height: 44, marginRight: 12, borderRadius: 22, backgroundColor: colors.border, borderWidth: 1, borderColor: colors.border },
+  headerTextContainer: { flex: 1, justifyContent: 'center' },
+  cardName: { color: colors.textMain, fontSize: 15, fontWeight: '700' },
+  followerCountText: { color: colors.textSub, fontSize: 12, marginTop: 2 },
+  cardTime: { color: colors.textSub, fontSize: 11, marginTop: 2 },
+  optionsContainer: { padding: 5, paddingRight: 0 },
+  optionsText: { color: colors.textSub, fontSize: 20, fontWeight: 'bold', marginTop: -15 },
+  contentSection: { paddingHorizontal: 15, paddingBottom: 12 },
+  cardDescInline: { color: colors.textMain, fontSize: 14, lineHeight: 21 },
+  moreText: { color: colors.textSub, fontSize: 14, fontWeight: '600' },
+  mediaWrapper: { width: '100%', aspectRatio: 1.2, backgroundColor: colors.background },
+  mediaContent: { width: '100%', height: '100%' },
+  divider: { height: 1, backgroundColor: colors.border, marginHorizontal: 15 },
+  cardActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  cardActionsLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  actionIconContainer: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+  actionIcon: { width: 20, height: 20, resizeMode: 'contain' },
+  actionLabel: { color: colors.textSub, fontSize: 13, marginLeft: 6, fontWeight: '600' },
 });
