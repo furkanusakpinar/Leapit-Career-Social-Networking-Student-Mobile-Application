@@ -16,9 +16,6 @@ import { lightTheme, darkTheme } from '../theme/colors';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-/**
- * PostOptionsMenu – Anchored popup Context Menu
- */
 export default function PostOptionsMenu({
   visible,
   isOwnPost,
@@ -66,7 +63,6 @@ export default function PostOptionsMenu({
     }
   }, [visible]);
 
-  // Prevent menu from overflowing off the bottom of the screen
   const menuHeight = isOwnPost ? 120 : 120;
   const isCloseToBottom = anchorY + menuHeight > SCREEN_HEIGHT - 100;
   const topPos = isCloseToBottom ? anchorY - menuHeight - 15 : anchorY + 15;

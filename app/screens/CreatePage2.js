@@ -25,6 +25,11 @@ import { lightTheme, darkTheme } from '../theme/colors';
 import ImageCropModal from '../components/ImageCropModal';
 import { uploadToCloudinary } from '../utils/cloudinary';
 
+const SUGGESTED_CITIES = [
+  'İstanbul', 'Ankara', 'İzmir', 'Bursa', 'Antalya',
+  'Adana', 'Gaziantep', 'Konya', 'Eskişehir', 'Trabzon'
+];
+
 const CreatePage2 = ({ route }) => {
   const userId = useSelector(state => state.user.userId);
   const themeMode = useSelector(state => state.theme?.mode || 'dark');
@@ -35,7 +40,11 @@ const CreatePage2 = ({ route }) => {
   const navigation = useNavigation();
 
   const [bio, setBio] = useState(route.params?.userData?.bio || '');
-  const [userLocation, setUserLocation] = useState(route.params?.userData?.userLocation || '');
+  const initialLocation = route.params?.userData?.userLocation || '';
+  const initialCity = route.params?.userData?.city || '';
+  const initialCountry = route.params?.userData?.country || '';
+  const [city, setCity] = useState(initialCity || (initialLocation ? initialLocation.split(',')[0].trim() : ''));
+  const [country, setCountry] = useState(initialCountry || (initialLocation ? initialLocation.split(',')[1]?.trim() : ''));
   const [profileImageUri, setProfileImageUri] = useState(route.params?.userData?.profileImageUrl || null);
   const [bannerImageUri, setBannerImageUri] = useState(null);
 
@@ -46,22 +55,23 @@ const CreatePage2 = ({ route }) => {
   const [sendingIds, setSendingIds] = useState({});
   const [currentUserData, setCurrentUserData] = useState(null);
   const [pendingCrop, setPendingCrop] = useState(null);
+  const [citySuggestions, setCitySuggestions] = useState([]);
 
   const canSaveProfile = useMemo(() => {
-    return bio.trim() !== '' && userLocation.trim() !== '' && !isLoading;
-  }, [bio, userLocation, isLoading]);
+    return bio.trim() !== '' && (city.trim() !== '' || country.trim() !== '') && !isLoading;
+  }, [bio, city, country, isLoading]);
 
   useEffect(() => {
     let isMounted = true;
     const prepareData = async () => {
-      // Son 20 dk içindeki ilerlemeyi geri yükle
       const saved = await AsyncStorage.getItem('create_page2_draft');
       if (saved) {
         const { data, timestamp } = JSON.parse(saved);
         if (Date.now() - timestamp < 20 * 60 * 1000) {
           if (isMounted) {
             if (data.bio) setBio(data.bio);
-            if (data.userLocation) setUserLocation(data.userLocation);
+            if (data.city) setCity(data.city);
+            if (data.country) setCountry(data.country);
           }
         } else {
           await AsyncStorage.removeItem('create_page2_draft');
@@ -99,18 +109,17 @@ const CreatePage2 = ({ route }) => {
     return () => { isMounted = false; };
   }, [userId]);
 
-  // Bio ve konum değişikliklerini otomatik kaydet
   useEffect(() => {
     const saveDraft = async () => {
       try {
         await AsyncStorage.setItem('create_page2_draft', JSON.stringify({
-          data: { bio, userLocation },
+          data: { bio, city, country },
           timestamp: Date.now()
         }));
       } catch (_) {}
     };
     saveDraft();
-  }, [bio, userLocation]);
+  }, [bio, city, country]);
 
   const cancelConnectionRequest = async (targetUser) => {
     setSendingIds(prev => ({ ...prev, [targetUser.id]: true }));
@@ -204,7 +213,6 @@ const CreatePage2 = ({ route }) => {
         backImageUrlForFirebase = await uploadToCloudinary(bannerImageUri, 'image');
       }
 
-      // 1. Aşama taslak verilerini AsyncStorage'dan oku
       let step1Payload = {};
       const profRaw = await AsyncStorage.getItem('create_profile_draft');
       const studRaw = await AsyncStorage.getItem('student_page_draft');
@@ -222,7 +230,6 @@ const CreatePage2 = ({ route }) => {
       }
 
       if (profData && studData) {
-        // En güncel olanı seç
         if (profData.timestamp > studData.timestamp) {
           step1Payload = {
             profession: profData.data.profession || '',
@@ -264,11 +271,12 @@ const CreatePage2 = ({ route }) => {
         }
       }
 
-      // Tüm verileri bir kerede Firestore'a kaydet
       await updateDoc(doc(db, 'Users', userId), {
         ...step1Payload,
         bio,
-        userLocation,
+        city,
+        country,
+        userLocation: [city, country].map(s => s.trim()).filter(Boolean).join(', '),
         profileImageUrl: imageUrlForFirebase,
         backProfileImageUrl: backImageUrlForFirebase || null,
         profileCompleted: true,
@@ -276,7 +284,6 @@ const CreatePage2 = ({ route }) => {
         lastActiveAt: new Date().toISOString()
       });
 
-      // Başarılı kayıt — tüm taslakları temizle
       await AsyncStorage.multiRemove(['create_profile_draft', 'student_page_draft', 'create_page2_draft', 'step1_completed']);
       dispatch(setProfileStep(null));
       dispatch(setAuth(true));
@@ -313,7 +320,6 @@ const CreatePage2 = ({ route }) => {
         >
 
           <View style={styles.loginCard}>
-            {/* Banner */}
             <View style={{ width: '100%', marginBottom: 48, marginTop: 20 }}>
               <Pressable onPress={() => pickImage('banner')} style={{ width: '100%', height: Math.round((Dimensions.get('window').width - 50) * 190 / Dimensions.get('window').width), borderRadius: 14, overflow: 'hidden', backgroundColor: colors.border }}>
                 {bannerImageUri ? (
@@ -328,7 +334,6 @@ const CreatePage2 = ({ route }) => {
                 </View>
               </Pressable>
 
-              {/* Avatar — bannerın sol altına bindirme */}
               <View style={{ position: 'absolute', bottom: -44, left: 16 }}>
                 <Pressable onPress={() => pickImage('profile')} style={{ position: 'relative' }}>
                   {profileImageUri ? (
@@ -338,7 +343,7 @@ const CreatePage2 = ({ route }) => {
                       <MaterialCommunityIcons name="account" size={48} color={colors.textSub} />
                     </View>
                   )}
-                  <View style={{ position: 'absolute', bottom: 2, right: 2, backgroundColor: colors.primary, width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: colors.cardBackground }}>
+                  <View style={{ position: 'absolute', bottom: 2, right: 2, backgroundColor: 'rgba(0,0,0,0.5)', width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: colors.cardBackground }}>
                     <Ionicons name="camera" size={11} color="white" />
                   </View>
                 </Pressable>
@@ -357,14 +362,51 @@ const CreatePage2 = ({ route }) => {
             />
 
             <Text style={styles.titleText}>Konum *</Text>
-            <TextInput
-              placeholder="Şehir, Ülke"
-              placeholderTextColor={colors.textSub}
-              style={[styles.input, styles.locationInput]}
-              value={userLocation}
-              onChangeText={setUserLocation}
-              maxLength={100}
-            />
+            <View style={styles.rowFields}>
+              <View style={[styles.inputContainer, styles.flex, { zIndex: 50 }]}>
+                <TextInput
+                  placeholder="Şehir"
+                  placeholderTextColor={colors.textSub}
+                  value={city}
+                  onChangeText={(text) => {
+                    setCity(text);
+                    if (text.length > 0) {
+                      setCitySuggestions(
+                        SUGGESTED_CITIES.filter(c => c.toLowerCase().includes(text.toLowerCase())).slice(0, 5)
+                      );
+                    } else {
+                      setCitySuggestions([]);
+                    }
+                  }}
+                  onBlur={() => setTimeout(() => setCitySuggestions([]), 200)}
+                  style={[styles.input, styles.inputInner]}
+                  maxLength={40}
+                />
+                {citySuggestions.length > 0 && (
+                  <View style={styles.suggestionBox}>
+                    {citySuggestions.map((c, index) => (
+                      <Pressable
+                        key={index}
+                        style={[styles.suggestionItem, index === citySuggestions.length - 1 && { borderBottomWidth: 0 }]}
+                        onPress={() => { setCity(c); setCitySuggestions([]); }}
+                      >
+                        <Text style={styles.suggestionText}>{c}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </View>
+              <View style={[styles.inputContainer, styles.flex]}>
+                <TextInput
+                  placeholder="Ülke"
+                  placeholderTextColor={colors.textSub}
+                  value={country}
+                  onChangeText={setCountry}
+                  style={[styles.input, styles.inputInner]}
+                  maxLength={40}
+                />
+              </View>
+            </View>
 
             <View style={styles.connectionSection}>
               <Text style={styles.connectionTitle}>Tanıdıklarını Bul</Text>
@@ -525,7 +567,48 @@ const getStyles = (colors) => StyleSheet.create({
   titleText: { color: colors.textSub, marginBottom: 4, fontSize: 12, fontWeight: '600' },
   input: { backgroundColor: colors.mode === 'dark' ? '#13151C' : colors.border, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 15, paddingVertical: 12, color: colors.textMain, fontSize: 16, marginBottom: 12, justifyContent: 'center' },
   bioInput: { height: 80, textAlignVertical: 'top' },
-  locationInput: { height: 50 },
+  flex: { flex: 1 },
+  rowFields: { flexDirection: 'row', gap: 10 },
+  inputContainer: {
+    backgroundColor: colors.mode === 'dark' ? '#13151C' : colors.border,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 0,
+    height: 50,
+    marginBottom: 12,
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  inputInner: {
+    marginBottom: 0,
+    paddingVertical: 0,
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+  },
+  suggestionBox: {
+    position: 'absolute',
+    top: 55,
+    left: 0,
+    right: 0,
+    backgroundColor: colors.cardBackground,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    zIndex: 1000,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    overflow: 'hidden',
+  },
+  suggestionItem: {
+    padding: 13,
+    borderBottomWidth: 0.5,
+    borderBottomColor: colors.border,
+  },
+  suggestionText: { color: colors.textMain, fontSize: 14 },
   connectionSection: { marginVertical: 8 },
   connectionTitle: { color: colors.textMain, fontSize: 14, fontWeight: '600', marginBottom: 8 },
   userList: { height: 175, marginHorizontal: -25 },

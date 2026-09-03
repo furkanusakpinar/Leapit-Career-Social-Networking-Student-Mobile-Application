@@ -7,18 +7,23 @@ import {
   Easing,
   Image,
   Keyboard,
-  KeyboardAvoidingView, Platform,
+  Platform,
   Pressable,
   StatusBar,
   StyleSheet,
   Text, TextInput,
   View
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Toast from 'react-native-toast-message';
+import { useDispatch, useSelector } from 'react-redux';
+import BottomSheet from '../components/BottomSheet';
+import LoginSkeleton from '../skeleton/LoginSkeleton';
 
 const { width: WIN_W, height: WIN_H } = Dimensions.get('window');
 
 const PARTICLE_COUNT = 15;
-const PARTICLE_SPEED = 30000; // ms — very slow and elegant drift
+const PARTICLE_SPEED = 30000;
 
 const randomBetween = (min, max) => Math.random() * (max - min) + min;
 
@@ -32,7 +37,7 @@ const ParticleBackground = ({ color = 'rgba(255,255,255,0.8)' }) => {
       opacity: new Animated.Value(randomBetween(0.25, 0.65)),
       duration: randomBetween(PARTICLE_SPEED * 0.8, PARTICLE_SPEED * 1.4),
     })),
-  []);
+    []);
 
   useEffect(() => {
     const animateParticle = (p) => {
@@ -69,19 +74,14 @@ const ParticleBackground = ({ color = 'rgba(255,255,255,0.8)' }) => {
     </View>
   );
 };
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import Toast from 'react-native-toast-message';
-import { useDispatch, useSelector } from 'react-redux';
-import LoginSkeleton from '../skeleton/LoginSkeleton';
-import BottomSheet from '../components/BottomSheet';
 
 
-import { setAuth, setUserId, setProfileStep } from '../redux/userSlice';
+import { setAuth, setProfileStep, setUserId } from '../redux/userSlice';
 
 
-import { collection, getDocs, query, where, doc, updateDoc, deleteDoc, addDoc } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDocs, query, updateDoc, where } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
-import { lightTheme, darkTheme } from '../theme/colors';
+import { darkTheme, lightTheme } from '../theme/colors';
 import { hashPassword } from '../utils/hash';
 
 const SCREEN_WIDTH = WIN_W;
@@ -132,7 +132,7 @@ const LoginPage = () => {
   const colors = themeMode === 'light' ? lightTheme : darkTheme;
   const styles = getStyles(colors);
 
-  
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -144,9 +144,8 @@ const LoginPage = () => {
   const reduxUserId = useSelector(state => state.user.userId);
   const userInfo = useSelector(state => state.user.userInfo);
 
-  // BottomSheet state
   const [sheetVisible, setSheetVisible] = useState(false);
-  const [pendingResume, setPendingResume] = useState(null); // { docId, step, fullName }
+  const [pendingResume, setPendingResume] = useState(null);
 
   useEffect(() => {
     if (profileStep && reduxUserId) {
@@ -169,7 +168,7 @@ const LoginPage = () => {
     closeSheet();
     dispatch(setUserId(pendingResume.docId));
     dispatch(setProfileStep(pendingResume.step));
-    
+
     let currentEmail = email;
     let currentPassword = password;
     if (!currentPassword) {
@@ -195,7 +194,7 @@ const LoginPage = () => {
     try {
       await deleteDoc(doc(db, 'Users', pendingResume.docId));
       await AsyncStorage.multiRemove(['create_profile_draft', 'create_page2_draft', 'student_page_draft', 'step1_completed']);
-      
+
       let currentEmail = email;
       let currentPassword = password;
       if (!currentPassword) {
@@ -230,14 +229,14 @@ const LoginPage = () => {
     }
   };
 
-  
+
   const animValue1 = useRef(new Animated.Value(0)).current;
   const animValue2 = useRef(new Animated.Value(0)).current;
   const animValue3 = useRef(new Animated.Value(0)).current;
   const animValue4 = useRef(new Animated.Value(0)).current;
   const [zIndices, setZIndices] = useState([4, 3, 2, 1]);
 
-  
+
   useFocusEffect(
     useCallback(() => {
       let isMounted = true;
@@ -261,7 +260,7 @@ const LoginPage = () => {
     }, [])
   );
 
-  
+
   useEffect(() => {
     let loopTimeout;
     const animateLoop = () => {
@@ -312,14 +311,12 @@ const LoginPage = () => {
       }
       const userId = userDoc.id;
 
-      // Profil tamamlandı mı kontrol et
       if (!userData.profileCompleted) {
         const createdAt = userData.createdAt ? new Date(userData.createdAt).getTime() : 0;
         const elapsedMs = Date.now() - createdAt;
         const TWENTY_MINUTES = 20 * 60 * 1000;
 
         if (elapsedMs <= TWENTY_MINUTES) {
-          // 20 dk içinde — BottomSheet sor
           let step = 'CreateProfile';
           try {
             const step1Raw = await AsyncStorage.getItem('step1_completed');
@@ -329,12 +326,11 @@ const LoginPage = () => {
                 step = 'CreatePage2';
               }
             }
-          } catch (_) {}
+          } catch (_) { }
           setIsLoading(false);
           openSheet({ docId: userId, step, fullName: userData.fullName });
           return;
         } else {
-          // 20 dk geçmiş — sil ve tekrar kaydolmasını söyle
           await deleteDoc(doc(db, 'Users', userId));
           await AsyncStorage.multiRemove([
             'create_profile_draft',
@@ -369,7 +365,7 @@ const LoginPage = () => {
   };
 
   const getImageStyle = (animValue, startPos) => {
-    
+
     const positions = [
       { size: 140, top: 110, left: (SCREEN_WIDTH / 2) - 70 },
       { size: 130, top: 20, left: -20 },
@@ -470,11 +466,7 @@ const LoginPage = () => {
       </View>
 
 
-      {/* BottomSheet Modal */}
-      <BottomSheet visible={sheetVisible} onClose={closeSheet} title="Kaldığın Yerden Devam Et" subtitle="Profil tamamlama işleminiz yarım kalmış. Devam etmek ister misiniz?">
-        <View style={bsStyles.iconCircle}>
-          <Text style={{ fontSize: 32 }}>⏱️</Text>
-        </View>
+      <BottomSheet visible={sheetVisible} onClose={closeSheet} title="Kaldığın Yerden Devam Et" subtitle="Profil tamamlama işleminiz yarım kalmış. Devam etmek ister misiniz?" contentStyle={bsStyles.content} hideCloseIcon dismissOnContentSwipe>
         <Pressable style={[bsStyles.btnYes, { backgroundColor: colors.primary }]} onPress={handleResumeYes}>
           <Text style={bsStyles.btnYesText}>Evet, Devam Et</Text>
         </Pressable>
@@ -517,15 +509,10 @@ const getStyles = (colors) => StyleSheet.create({
 
 
 const bsStyles = StyleSheet.create({
-  iconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    justifyContent: 'center',
-    alignItems: 'center',
-    alignSelf: 'center',
-    backgroundColor: 'rgba(0,102,255,0.13)',
-    marginBottom: 24,
+  content: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 12,
   },
   btnYes: {
     width: '100%',
@@ -549,7 +536,6 @@ const bsStyles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1.5,
     paddingHorizontal: 24,
-    marginBottom: 24,
   },
   btnNoText: {
     fontWeight: '700',

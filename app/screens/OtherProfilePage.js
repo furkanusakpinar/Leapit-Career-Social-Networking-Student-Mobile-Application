@@ -292,7 +292,6 @@ function ProjectSheet({ project, visible, onClose, colors, isDark }) {
       subtitle={formatTimeAgo(project.createdAt)}
       contentStyle={{ height: SHEET_HEIGHT }}
     >
-        {/* GitHub Link */}
         {!!project.githubUrl && (
           <TouchableOpacity
             style={[sheetStyles.githubBtn, { backgroundColor: isDark ? '#1E1E2D' : '#F0F0F0', borderColor: colors.border }]}
@@ -306,7 +305,6 @@ function ProjectSheet({ project, visible, onClose, colors, isDark }) {
           </TouchableOpacity>
         )}
 
-        {/* Proje Fotoğrafları */}
         {project.photos?.length > 0 && (
           <View style={{ marginHorizontal: 16, marginTop: 10 }}>
             <Text style={[sheetStyles.codeLabel, { color: colors.textSub, marginBottom: 8 }]}>UYGULAMA EKRAN GÖRÜNTÜLERİ</Text>
@@ -334,7 +332,6 @@ function ProjectSheet({ project, visible, onClose, colors, isDark }) {
           </View>
         )}
 
-        {/* README WebView / Loader */}
         {loading && !readmeContent ? (
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
             <ActivityIndicator size="large" color={colors.primary} />
@@ -357,7 +354,6 @@ function ProjectSheet({ project, visible, onClose, colors, isDark }) {
           />
         )}
 
-        {/* Code Snippet */}
         {!!project.codeSnippet && (
           <View style={[sheetStyles.codeBlock, { backgroundColor: isDark ? '#1E1E2D' : '#F0F0F0', borderColor: colors.border }]}>
             <Text style={[sheetStyles.codeLabel, { color: colors.textSub }]}>KOD PARÇASI</Text>
@@ -372,7 +368,6 @@ function ProjectSheet({ project, visible, onClose, colors, isDark }) {
   );
 }
 
-// ─── Main OtherProfilePage ───────────────────────────────────────────────────
 export default function OtherProfilePage() {
   const navigation = useNavigation();
   const route = useRoute();
@@ -407,6 +402,7 @@ export default function OtherProfilePage() {
   const [optionsItem, setOptionsItem] = useState(null);
   const [menuAnchorY, setMenuAnchorY] = useState(0);
   const [contactMenuVisible, setContactMenuVisible] = useState(false);
+  const [showMoreInfo, setShowMoreInfo] = useState(false);
   const scrollY = useSharedValue(0);
 
   const themeMode = useSelector(state => state.theme?.mode || 'dark');
@@ -483,7 +479,6 @@ export default function OtherProfilePage() {
         const data = docSnap.data();
         setUserData(data);
 
-        // Fetch follow counts from the actual subcollections
         const followersSnap = await getDocs(collection(db, 'Users', profileUserId, 'followers'));
         setFollowersCount(followersSnap.size);
         const followingSnap = await getDocs(collection(db, 'Users', profileUserId, 'following'));
@@ -573,7 +568,7 @@ export default function OtherProfilePage() {
           .map(d => ({ id: d.id, ...d.data() }))
           .filter(item => {
             const visibility = item.visibility || 'everyone';
-            if (visibility === 'only_me') return false; // Ziyaretçilere asla gösterme
+            if (visibility === 'only_me') return false;
             if (visibility === 'friends') return isFollowingProfile;
             return true;
           });
@@ -605,9 +600,7 @@ export default function OtherProfilePage() {
           const postData = d.data();
           const visibility = postData.visibility || 'everyone';
 
-          // only_me postlar ziyaretçilere HİÇ gösterilmez
           if (visibility === 'only_me') return false;
-          // friends postlar sadece takipçilere görünür
           if (visibility === 'friends') return isFollowingProfile;
           return true;
         });
@@ -697,7 +690,6 @@ export default function OtherProfilePage() {
           followingCount: increment(-1),
         }), timeoutMs);
 
-        // Delete the follow notification from the target user's notifications collection
         try {
           const notificationsRef = collection(db, 'Users', profileUserId, 'notifications');
           const qNotif = query(
@@ -966,7 +958,6 @@ export default function OtherProfilePage() {
             onPress={() => {
               const cvLink = userData?.cvUrl || userData?.cv;
               if (cvLink) {
-                // Ensure URL starts with http:// or https://
                 const targetUrl = cvLink.startsWith('http://') || cvLink.startsWith('https://') 
                   ? cvLink 
                   : `https://${cvLink}`;
@@ -983,7 +974,6 @@ export default function OtherProfilePage() {
           </Pressable>
         </View>
 
-        {/* Banner + Avatar Section */}
         <Animated.View style={[styles.bannerContainer, bannerAnimatedStyle]}>
           {userData.backProfileImageUrl ? (
             <Image
@@ -1024,11 +1014,13 @@ export default function OtherProfilePage() {
                 ? (userData.branch ? `Öğrenci • ${userData.branch}` : 'Öğrenci')
                 : (userData.profession || 'Meslek yok')}
             </Text>
-            {!!userData.userLocation && (
+            {(!!userData.city || !!userData.country) && (
               <View style={[styles.locationRow, { justifyContent: 'space-between' }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
                   <MaterialCommunityIcons name="map-marker-outline" size={13} color={colors.textSub} style={{ marginRight: 3 }} />
-                  <Text style={styles.infoSubText} numberOfLines={1}>{userData.userLocation}</Text>
+                  <Text style={styles.infoSubText} numberOfLines={1}>
+                    {[userData.city, userData.country].filter(Boolean).join(', ')}
+                  </Text>
                 </View>
                 {(!!userData.githubLink || !!userData.instagramLink) && (
                   <TouchableOpacity
@@ -1074,7 +1066,6 @@ export default function OtherProfilePage() {
           </View>
         </View>
 
-        {/* İletişim Bilgileri Popup */}
         {contactMenuVisible && (!!userData.githubLink || !!userData.instagramLink) && (
           <Pressable
             style={{ ...StyleSheet.absoluteFillObject, zIndex: 99 }}
@@ -1129,6 +1120,73 @@ export default function OtherProfilePage() {
           <Text style={styles.sectionLabel}>Hakkımda</Text>
           <Text style={styles.bioText}>{userData.bio || 'Henüz bir açıklama eklenmedi.'}</Text>
         </View>
+
+        <TouchableOpacity
+          onPress={() => setShowMoreInfo(!showMoreInfo)}
+          style={[styles.paddingArea, { paddingTop: 0, paddingBottom: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' }]}
+          activeOpacity={0.7}
+        >
+          <Text style={{ color: colors.primary, fontSize: 13, fontWeight: '600' }}>
+            {showMoreInfo ? 'Daha Az Bilgi' : 'Daha Fazla Bilgi'}
+          </Text>
+          <Ionicons
+            name={showMoreInfo ? 'chevron-up' : 'chevron-down'}
+            size={16}
+            color={colors.primary}
+            style={{ marginLeft: 4 }}
+          />
+        </TouchableOpacity>
+
+        {showMoreInfo && (
+          <View style={[styles.paddingArea, { paddingTop: 12, paddingBottom: 6 }]}>
+            {!!userData.skills && userData.skills.length > 0 && userData.showSkills !== false && (
+              <View style={{ marginBottom: 12 }}>
+                <Text style={styles.sectionLabel}>Beceriler</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {userData.skills.map((skill, index) => (
+                    <View key={index} style={styles.moreInfoCard}>
+                      <Text style={styles.moreInfoText} numberOfLines={1}>{skill}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {!!userData.languages && userData.languages.length > 0 && userData.showLanguages !== false && (
+              <View style={{ marginBottom: 12 }}>
+                <Text style={styles.sectionLabel}>Diller</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {userData.languages.map((lang, index) => (
+                    <View key={index} style={styles.moreInfoCard}>
+                      <Text style={styles.moreInfoText} numberOfLines={1}>{lang}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {!!userData.interests && userData.interests.length > 0 && userData.showInterests !== false && (
+              <View style={{ marginBottom: 4 }}>
+                <Text style={styles.sectionLabel}>İlgi Alanları</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {userData.interests.map((interest, index) => (
+                    <View key={index} style={styles.moreInfoCard}>
+                      <Text style={styles.moreInfoText} numberOfLines={1}>{interest}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {(!userData.skills || userData.skills.length === 0) &&
+             (!userData.languages || userData.languages.length === 0) &&
+             (!userData.interests || userData.interests.length === 0) && (
+              <Text style={{ color: colors.textSub, fontSize: 13, textAlign: 'center' }}>
+                Henüz eklenmemiş.
+              </Text>
+            )}
+          </View>
+        )}
 
         {currentUserId !== profileUserId && (
           <View style={styles.buttonContainer}>
@@ -1252,7 +1310,6 @@ export default function OtherProfilePage() {
               );
             }
 
-            // Blog & Projeler cards
             return (
               <View key={item.id} style={styles.card}>
                 <View style={styles.cardHeaderRow}>
@@ -1286,7 +1343,6 @@ export default function OtherProfilePage() {
         </View>
       </Animated.ScrollView>
 
-      {/* Project Detail Sheet */}
       <ProjectSheet
         project={selectedProject}
         visible={sheetVisible}
@@ -1312,7 +1368,6 @@ export default function OtherProfilePage() {
   );
 }
 
-// ─── Sheet Styles (Copied from ProfilePage.js) ────────────────────────────────
 const sheetStyles = StyleSheet.create({
   githubBtn: {
     flexDirection: 'row',
@@ -1349,7 +1404,6 @@ const sheetStyles = StyleSheet.create({
   },
 });
 
-// ─── Page Styles (Merged ProfilePage & OtherProfilePage styles) ───────────────
 const getStyles = (colors, isDark) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
@@ -1422,6 +1476,19 @@ const getStyles = (colors, isDark) => StyleSheet.create({
   activeTabText: { color: colors.textMain },
 
   card: { backgroundColor: colors.cardBackground, padding: 15, borderRadius: 20, marginBottom: 15, borderWidth: 1, borderColor: colors.border },
+  moreInfoCard: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+    marginBottom: 8,
+    width: '31%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  moreInfoText: { color: colors.textMain, fontSize: 13, fontWeight: '600', textAlign: 'center' },
   cardTitle: { color: colors.textMain, fontSize: 16, fontWeight: 'bold', flex: 1 },
   cardHeaderRow: {
     flexDirection: 'row',
@@ -1463,7 +1530,6 @@ const getStyles = (colors, isDark) => StyleSheet.create({
   moreBtn: { color: colors.primary, fontSize: 12, fontWeight: 'bold' },
   emptyText: { color: colors.textSub, textAlign: 'center', marginTop: 20 },
 
-  // ── HomePage-style Post Card ──
   postCard: {
     backgroundColor: colors.cardBackground,
     marginHorizontal: 10,
@@ -1505,7 +1571,6 @@ const getStyles = (colors, isDark) => StyleSheet.create({
   optionsContainer: { padding: 5, paddingRight: 0 },
   optionsText: { color: colors.textSub, fontSize: 20, fontWeight: 'bold', marginTop: -15 },
 
-  // OtherProfile specific connection/follow button styling
   buttonContainer: {
     flexDirection: 'row',
     marginTop: 18,
@@ -1660,7 +1725,6 @@ const getStyles = (colors, isDark) => StyleSheet.create({
   },
 });
 
-// ─── HomePage-style Post Card styles ──────────────────────────────────────────
 const getPostCardStyles = (colors) => StyleSheet.create({
   card: {
     backgroundColor: colors.cardBackground,

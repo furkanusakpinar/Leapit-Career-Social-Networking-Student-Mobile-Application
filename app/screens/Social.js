@@ -9,17 +9,21 @@ import {
   orderBy,
   query,
   updateDoc,
+  writeBatch,
 } from 'firebase/firestore';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Dimensions,
   FlatList,
   Image,
+  Modal,
+  Alert,
   Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { useSelector } from 'react-redux';
@@ -39,6 +43,11 @@ const Social = () => {
   const [connectedIds, setConnectedIds] = useState(new Set());
   const [pageLoading, setPageLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [menuVisible, setMenuVisible] = useState(false);
+  const menuBtnRef = useRef(null);
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 16 });
 
   const themeMode = useSelector(state => state.theme?.mode || 'dark');
   const colors = themeMode === 'light' ? lightTheme : darkTheme;
@@ -175,19 +184,57 @@ const Social = () => {
     });
   };
 
+  const exitSelection = () => { setSelectionMode(false); setSelectedIds(new Set()); };
+
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const openMenu = () => {
+    menuBtnRef.current?.measure((x, y, w, h, px, py) => {
+      setMenuPos({ top: py + h + 4, right: width - px - w });
+      setMenuVisible(true);
+    });
+  };
+
+  const deleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+    const batch = writeBatch(db);
+    selectedIds.forEach(id => batch.delete(doc(db, 'Users', userId, 'chats', id)));
+    await batch.commit();
+    exitSelection();
+  };
+
   if (pageLoading) return <SocialSkeleton />;
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()}>
-          <Image
-            source={require('../../assets/images/back.png')}
-            style={[styles.backIcon, { tintColor: colors.iconTint }]}
+        {selectionMode ? (
+          <Pressable onPress={exitSelection} hitSlop={12}>
+            <MaterialCommunityIcons name="close" size={24} color={colors.textMain} />
+          </Pressable>
+        ) : (
+          <Pressable onPress={() => navigation.goBack()}>
+            <Image
+              source={require('../../assets/images/back.png')}
+              style={[styles.backIcon, { tintColor: colors.iconTint }]}
+            />
+          </Pressable>
+        )}
+        <Text style={styles.headerTitle}>{selectionMode ? `${selectedIds.size} secildi` : 'Mesajlar'}</Text>
+        <TouchableOpacity ref={menuBtnRef} onPress={openMenu} hitSlop={12} style={styles.menuBtn} disabled={selectionMode}>
+          <MaterialCommunityIcons
+            name={selectionMode ? 'close' : 'dots-vertical'}
+            size={selectionMode ? 0 : 24}
+            color={colors.textMain}
           />
-        </Pressable>
-        <Text style={styles.headerTitle}>Mesajlar</Text>
-        <View style={{ width: 32 }} />
+        </TouchableOpacity>
       </View>
 
       <FlatList
@@ -217,7 +264,6 @@ const Social = () => {
                   style={styles.connCard}
                   onPress={() => navigation.navigate('OtherProfilePage', { userId: item.recipientId })}
                 >
-                  {/* Cover/Banner */}
                   <View style={styles.connCoverArea}>
                     <Image
                       source={item.backProfileImageUrl
@@ -226,7 +272,6 @@ const Social = () => {
                       style={styles.connCoverImage}
                     />
                   </View>
-                  {/* Body: square pp + info */}
                   <View style={styles.connBodyRow}>
                     <View style={styles.connAvatarWrap}>
                       {item.profileImageUrl ? (
@@ -256,7 +301,6 @@ const Social = () => {
                       </View>
                     </View>
                   </View>
-                  {/* Connect button */}
                   <Pressable
                     style={[styles.connButton, connectedIds.has(item.recipientId) && styles.connButtonActive]}
                     onPress={() => handleConnectToggle(item.recipientId)}
@@ -277,11 +321,20 @@ const Social = () => {
             <Text style={[styles.sectionTitle, { marginTop: 25 }]}>Mesajlar</Text>
           </View>
         )}
-        renderItem={({ item }) => (
+        renderItem={({ item }) => {
+          const selected = selectedIds.has(item.id);
+          return (
           <Pressable
-            style={[styles.msgItem, item.unread && styles.unreadBg]}
-            onPress={() => handleChatPress(item)}
+            style={[styles.msgItem, item.unread && styles.unreadBg, selected && styles.msgItemSelected]}
+            onPress={() => selectionMode ? toggleSelect(item.id) : handleChatPress(item)}
+            onLongPress={() => { setSelectionMode(true); toggleSelect(item.id); }}
+            delayLongPress={300}
           >
+            {selectionMode && (
+              <View style={[styles.checkbox, selected && { backgroundColor: colors.primary, borderColor: colors.primary }]}>
+                {selected && <MaterialCommunityIcons name="check" size={14} color="white" />}
+              </View>
+            )}
             <View style={styles.msgAvatarWrap}>
               {item.profileImageUrl ? (
                 <Image source={{ uri: item.profileImageUrl }} style={styles.msgAvatar} />
@@ -295,14 +348,37 @@ const Social = () => {
             </View>
             <View style={styles.msgRight}>
               <Text style={styles.msgTime}>{item.time}</Text>
-              {item.unread && <View style={styles.unreadDot} />}
+              {item.unread && !selectionMode && <View style={styles.unreadDot} />}
             </View>
           </Pressable>
-        )}
+          );
+        }}
         ListEmptyComponent={<Text style={styles.emptyText}>Henüz mesaj yok.</Text>}
       />
 
       <BottomNavBar userId={userId} />
+
+      {selectionMode && selectedIds.size > 0 && (
+        <TouchableOpacity
+          style={[styles.fabDelete, { backgroundColor: '#EF4444' }]}
+          onPress={deleteSelected}
+          activeOpacity={0.85}
+        >
+          <MaterialCommunityIcons name="trash-can-outline" size={22} color="white" />
+          <Text style={styles.fabText}>{selectedIds.size} Sohbeti Sil</Text>
+        </TouchableOpacity>
+      )}
+
+      <Modal transparent visible={menuVisible} animationType="fade" onRequestClose={() => setMenuVisible(false)}>
+        <Pressable style={{ flex: 1 }} onPress={() => setMenuVisible(false)}>
+          <View style={[styles.menuPopup, { top: menuPos.top, right: menuPos.right, backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+            <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); setSelectionMode(true); }}>
+              <MaterialCommunityIcons name="check-circle-outline" size={18} color={colors.textMain} style={{ marginRight: 8 }} />
+              <Text style={[styles.menuItemText, { color: colors.textMain }]}>Seç</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 };
@@ -365,7 +441,7 @@ const getStyles = (colors) => StyleSheet.create({
     borderColor: colors.border,
   },
   unreadBg: { borderColor: colors.primary, borderWidth: 1, backgroundColor: 'rgba(29, 155, 240, 0.05)' },
-  msgAvatarWrap: { width: 50, height: 50, borderRadius: 25, backgroundColor: colors.cardBackground, overflow: 'hidden', marginRight: 12 },
+  msgAvatarWrap: { width: 50, height: 50, borderRadius: 14, backgroundColor: colors.cardBackground, overflow: 'hidden', marginRight: 12 },
   msgAvatar: { width: '100%', height: '100%' },
   msgTextWrap: { flex: 1 },
   msgName: { color: colors.textMain, fontSize: 15, fontWeight: '600' },
@@ -381,7 +457,52 @@ const getStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.primary,
     marginLeft: 6,
   },
-  emptyText: { color: colors.textSub, textAlign: 'center', marginTop: 50 }
+  emptyText: { color: colors.textSub, textAlign: 'center', marginTop: 50 },
+  msgItemSelected: { borderColor: colors.primary, borderWidth: 1.5 },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: colors.textSub,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  menuBtn: { padding: 4 },
+  menuPopup: {
+    position: 'absolute',
+    borderRadius: 14,
+    borderWidth: 1,
+    minWidth: 180,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 10,
+    overflow: 'hidden',
+    paddingVertical: 4,
+  },
+  menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, paddingHorizontal: 16 },
+  menuItemText: { fontSize: 15, fontWeight: '600' },
+  menuDivider: { height: 1, marginHorizontal: 12 },
+  fabDelete: {
+    position: 'absolute',
+    bottom: 90,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 30,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
+    gap: 8,
+  },
+  fabText: { color: 'white', fontSize: 15, fontWeight: '700' },
 });
 
 export default Social;

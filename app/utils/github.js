@@ -1,6 +1,5 @@
 export const parseGithubUrl = (url) => {
   if (!url) return null;
-  // Matches https://github.com/owner/repo or github.com/owner/repo with optional trailing slash or .git
   const match = url.match(/github\.com\/([^/]+)\/([^/]+)/);
   if (match) {
     const owner = match[1];
@@ -20,7 +19,6 @@ export const fetchRepoTitle = async (githubUrl) => {
     });
     if (response.ok) {
       const data = await response.json();
-      // Return repo name formatted nicely (e.g. "my-awesome-app" → "My Awesome App")
       const rawName = data.name || repo;
       return rawName.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
     }
@@ -39,7 +37,6 @@ export const convertRelativeUrlsToAbsolute = (markdown, githubUrl, defaultBranch
 
   const rawBaseUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${defaultBranch}`;
 
-  // 1. Convert Markdown images: ![alt](path) where path does not start with http, https, mailto or anchor
   let result = markdown.replace(
     /!\[([^\]]*)\]\(((?!https?:\/\/|mailto:|#)[^)]+)\)/g,
     (match, alt, path) => {
@@ -48,7 +45,6 @@ export const convertRelativeUrlsToAbsolute = (markdown, githubUrl, defaultBranch
     }
   );
 
-  // 2. Convert HTML <img> tags: <img src="path" /> where src does not start with http, https, mailto or anchor
   result = result.replace(
     /<img([^>]+)src=["']((?!https?:\/\/|mailto:|#)[^"']+)["']/gi,
     (match, attributes, path) => {
@@ -57,7 +53,6 @@ export const convertRelativeUrlsToAbsolute = (markdown, githubUrl, defaultBranch
     }
   );
 
-  // 3. Convert relative Markdown links [text](path) to full GitHub blob link URLs
   result = result.replace(
     /\[([^\]]*)\]\(((?!https?:\/\/|mailto:|#)[^)]+)\)/g,
     (match, text, path) => {
@@ -75,7 +70,6 @@ export const fetchReadmeFromGithub = async (githubUrl) => {
   if (!parsed) return null;
   const { owner, repo } = parsed;
   
-  // Try fetching using GitHub API first (Accept: application/vnd.github.raw returns raw file)
   try {
     const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/readme`, {
       headers: {
@@ -86,7 +80,6 @@ export const fetchReadmeFromGithub = async (githubUrl) => {
     if (response.ok) {
       const markdown = await response.text();
       
-      // Determine the default branch dynamically to build correct raw image paths
       let branch = 'main';
       try {
         const repoResponse = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
@@ -108,7 +101,6 @@ export const fetchReadmeFromGithub = async (githubUrl) => {
     console.log("GitHub API fetch error:", error);
   }
 
-  // Fallback to raw githubusercontent if API fails or rate limited
   const branches = ['main', 'master'];
   for (const branch of branches) {
     try {

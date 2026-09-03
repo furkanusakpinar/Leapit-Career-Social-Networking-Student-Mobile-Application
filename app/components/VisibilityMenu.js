@@ -67,7 +67,6 @@ export default function VisibilityMenu({ visible, onSelect, onClose, selected })
             elevation: 8,
           }}
         >
-          {/* Soru Başlığı */}
           <View
             style={{
               paddingHorizontal: 16,
@@ -81,7 +80,6 @@ export default function VisibilityMenu({ visible, onSelect, onClose, selected })
             </Text>
           </View>
 
-          {/* Seçenekler */}
           {VISIBILITY_OPTIONS.map((opt, idx) => {
             const isLast = idx === VISIBILITY_OPTIONS.length - 1;
             const isSelected = selected === opt.key;

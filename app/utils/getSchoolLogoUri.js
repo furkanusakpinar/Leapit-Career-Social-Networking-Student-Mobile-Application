@@ -106,7 +106,6 @@ export async function getSchoolLogoUri(schoolName) {
 
   const lowerName = name.toLowerCase();
 
-  // 1. Case-insensitive exact lookup in local map
   const exactKey = Object.keys(schoolDomainMap).find(
     k => k.toLowerCase() === lowerName
   );
@@ -114,7 +113,6 @@ export async function getSchoolLogoUri(schoolName) {
     return `https://logos.hunter.io/${schoolDomainMap[exactKey]}`;
   }
 
-  // 2. Fuzzy/Substring matching in local map (e.g. "Princeton" matches "Princeton University")
   const fuzzyKey = Object.keys(schoolDomainMap).find(
     k => k.toLowerCase().includes(lowerName) || lowerName.includes(k.toLowerCase())
   );
@@ -122,17 +120,14 @@ export async function getSchoolLogoUri(schoolName) {
     return `https://logos.hunter.io/${schoolDomainMap[fuzzyKey]}`;
   }
 
-  // 3. Remote map lookups
   const remoteMap = await fetchRemoteSchoolMap();
   if (remoteMap) {
-    // Exact remote key
     const remoteExactKey = Object.keys(remoteMap).find(
       k => k.toLowerCase() === lowerName
     );
     if (remoteExactKey) {
       return `https://logos.hunter.io/${remoteMap[remoteExactKey]}`;
     }
-    // Fuzzy remote key
     const remoteFuzzyKey = Object.keys(remoteMap).find(
       k => k.toLowerCase().includes(lowerName) || lowerName.includes(k.toLowerCase())
     );
@@ -141,7 +136,6 @@ export async function getSchoolLogoUri(schoolName) {
     }
   }
 
-  // 4. Default fallback: strip non-alphanumeric and append '.edu'
   const cleanDomain = lowerName.replace(/[^a-z0-9]/g, '');
   if (cleanDomain.length > 1) {
     return `https://logos.hunter.io/${cleanDomain}.edu`;

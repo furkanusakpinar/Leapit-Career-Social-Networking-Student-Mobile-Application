@@ -80,18 +80,12 @@ const SettingsPage = () => {
   const fetchSavedData = useCallback(async () => {
     if (!userId) return;
     try {
-      // 1. Kaydedilen postları Users/{userId}/saves koleksiyonundan çek
       const savesSnap = await getDocs(collection(db, "Users", userId, "saves"));
 
-      // Kayıtlı post ID'lerini al
       const savedPostIds = savesSnap.docs.map(doc => doc.id);
 
       if (savedPostIds.length > 0) {
-          // Postları Firebase'den tek tek veya toplu çekmemiz gerekiyor.
-          // Basitlik için burada örnek bir yöntem (postId listesi ile):
-          // Not: Firestore'da 'in' sorgusu ile max 30 ID çekilebilir.
           const postsRef = collection(db, "Posts");
-          // Not: Buradaki sorgu basit olduğu için composite index istemeyecektir.
           const postsSnap = await getDocs(query(postsRef, where("__name__", "in", savedPostIds)));
 
           const postsData = postsSnap.docs.map((doc) => ({
@@ -103,8 +97,6 @@ const SettingsPage = () => {
           setSavedPosts([]);
       }
 
-      // Kaydedilen işleri benzer şekilde Jobs koleksiyonundan çek
-      // (Burası mevcut yapınızda Jobs koleksiyonuyla nasıl çalışıyorsa öyle kalmalı)
     } catch (e) {
       console.error("Kaydedilen veriler çekilirken hata:", e);
     }
@@ -393,7 +385,7 @@ const getStyles = (colors) =>
     profileImage: {
       width: 64,
       height: 64,
-      borderRadius: 32,
+      borderRadius: 14,
       backgroundColor: colors.border,
     },
     profileTextContainer: {

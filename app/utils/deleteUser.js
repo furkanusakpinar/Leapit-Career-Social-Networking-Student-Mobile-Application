@@ -15,7 +15,6 @@ export async function deleteUserData(userId) {
 
   console.log(`Starting cascading delete for user: ${userId}`);
 
-  // 1. Posts (global collection)
   try {
     const postsQ = query(collection(db, 'Posts'), where('userId', '==', userId));
     const postsSnap = await getDocs(postsQ);
@@ -26,7 +25,6 @@ export async function deleteUserData(userId) {
     console.error("Error deleting posts:", err);
   }
 
-  // 2. JobsPosts (global collection)
   try {
     const jobsQ = query(collection(db, 'JobsPosts'), where('userId', '==', userId));
     const jobsSnap = await getDocs(jobsQ);
@@ -37,7 +35,6 @@ export async function deleteUserData(userId) {
     console.error("Error deleting jobs:", err);
   }
 
-  // 3. connectionRequests (global collection)
   try {
     const connQ1 = query(collection(db, 'connectionRequests'), where('senderUserId', '==', userId));
     const connQ2 = query(collection(db, 'connectionRequests'), where('receiverUserId', '==', userId));
@@ -53,7 +50,6 @@ export async function deleteUserData(userId) {
     console.error("Error deleting connection requests:", err);
   }
 
-  // 4. prePosts (global collection)
   try {
     const prePostsQ = query(collection(db, 'prePosts'), where('userId', '==', userId));
     const prePostsSnap = await getDocs(prePostsQ);
@@ -64,15 +60,11 @@ export async function deleteUserData(userId) {
     console.error("Error deleting prePosts:", err);
   }
 
-  // 5. Followers & Following (cleanup and counts decrement)
-  // Let's find who this user is following:
   try {
     const followingSnap = await getDocs(collection(db, 'Users', userId, 'following'));
     const followingPromises = followingSnap.docs.map(async (fDoc) => {
-      const followedUserId = fDoc.id; // The ID of the user being followed
-      // Delete follower entry from the followed user: Users/followedUserId/followers/userId
+      const followedUserId = fDoc.id;
       await deleteDoc(doc(db, 'Users', followedUserId, 'followers', userId));
-      // Decrement the followed user's followersCount
       try {
         await updateDoc(doc(db, 'Users', followedUserId), {
           followersCount: increment(-1)
@@ -80,7 +72,6 @@ export async function deleteUserData(userId) {
       } catch (e) {
         console.warn(`Could not update followersCount for ${followedUserId}`, e);
       }
-      // Delete the following entry itself
       await deleteDoc(doc(db, 'Users', userId, 'following', followedUserId));
     });
     await Promise.all(followingPromises);
@@ -89,14 +80,11 @@ export async function deleteUserData(userId) {
     console.error("Error cleaning up followings:", err);
   }
 
-  // Let's find who is following this user:
   try {
     const followersSnap = await getDocs(collection(db, 'Users', userId, 'followers'));
     const followersPromises = followersSnap.docs.map(async (fDoc) => {
-      const followerUserId = fDoc.id; // The ID of the follower user
-      // Delete following entry from the follower user: Users/followerUserId/following/userId
+      const followerUserId = fDoc.id;
       await deleteDoc(doc(db, 'Users', followerUserId, 'following', userId));
-      // Decrement the follower's followingCount
       try {
         await updateDoc(doc(db, 'Users', followerUserId), {
           followingCount: increment(-1)
@@ -104,7 +92,6 @@ export async function deleteUserData(userId) {
       } catch (e) {
         console.warn(`Could not update followingCount for ${followerUserId}`, e);
       }
-      // Delete the follower entry itself
       await deleteDoc(doc(db, 'Users', userId, 'followers', followerUserId));
     });
     await Promise.all(followersPromises);
@@ -113,7 +100,6 @@ export async function deleteUserData(userId) {
     console.error("Error cleaning up followers:", err);
   }
 
-  // 6. User Subcollections: blog, projects, notifications
   try {
     const blogSnap = await getDocs(collection(db, 'Users', userId, 'blog'));
     const deleteBlogPromises = blogSnap.docs.map(d => deleteDoc(doc(db, 'Users', userId, 'blog', d.id)));
@@ -141,15 +127,13 @@ export async function deleteUserData(userId) {
     console.error("Error deleting user notifications:", err);
   }
 
-  // 7. Chats and messages
   try {
     const chatsSnap = await getDocs(collection(db, 'Users', userId, 'chats'));
     const chatPromises = chatsSnap.docs.map(async (cDoc) => {
-      const chatId = cDoc.id; // e.g. "userA_userB"
+      const chatId = cDoc.id;
       const chatData = cDoc.data();
       const recipientId = chatData.otherUserId;
 
-      // Delete all messages in the global chat collection: chats/chatId/messages/*
       try {
         const messagesSnap = await getDocs(collection(db, 'chats', chatId, 'messages'));
         const deleteMessagesPromises = messagesSnap.docs.map(mDoc => deleteDoc(doc(db, 'chats', chatId, 'messages', mDoc.id)));
@@ -159,14 +143,12 @@ export async function deleteUserData(userId) {
         console.error(`Error deleting messages in chat ${chatId}:`, msgErr);
       }
 
-      // Delete global chat document: chats/chatId
       try {
         await deleteDoc(doc(db, 'chats', chatId));
       } catch (e) {
         console.error(`Error deleting global chat document ${chatId}:`, e);
       }
 
-      // Delete chat reference from recipient user: Users/recipientId/chats/chatId
       if (recipientId) {
         try {
           await deleteDoc(doc(db, 'Users', recipientId, 'chats', chatId));
@@ -175,7 +157,6 @@ export async function deleteUserData(userId) {
         }
       }
 
-      // Delete chat reference from this user: Users/userId/chats/chatId
       await deleteDoc(doc(db, 'Users', userId, 'chats', chatId));
     });
     await Promise.all(chatPromises);
@@ -184,7 +165,6 @@ export async function deleteUserData(userId) {
     console.error("Error cleaning up chats:", err);
   }
 
-  // 8. Delete user main document: Users/userId
   try {
     await deleteDoc(doc(db, 'Users', userId));
     console.log(`Successfully deleted user document Users/${userId}`);

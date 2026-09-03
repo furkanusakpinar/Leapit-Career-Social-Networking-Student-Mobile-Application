@@ -41,9 +41,15 @@ const SUGGESTED_INTERESTS = [
   'Girişimcilik', 'Yapay Zeka', 'Kariyer', 'Sürdürülebilirlik', 'Sağlık'
 ];
 
-const ChipInput = ({ label, chipColor, items, setItems, allItems, colors, styles }) => {
+const truncateItem = (str, max = 10) => {
+  if (!str) return '';
+  return str.length <= max ? str : str.substring(0, max) + '...';
+};
+
+const ChipInput = ({ label, chipColor, items, setItems, allItems, colors, styles, zIndex = 40, maxItems = 6 }) => {
   const [input, setInput] = useState('');
   const [suggestions, setSuggestions] = useState([]);
+  const [focused, setFocused] = useState(false);
 
   const removeItem = (item) => setItems(items.filter(i => i !== item));
 
@@ -51,6 +57,7 @@ const ChipInput = ({ label, chipColor, items, setItems, allItems, colors, styles
     const trimmed = value.trim();
     if (!trimmed) return;
     if (!items.includes(trimmed)) {
+      if (items.length >= maxItems) return;
       setItems([...items, trimmed]);
     }
     setInput('');
@@ -72,33 +79,53 @@ const ChipInput = ({ label, chipColor, items, setItems, allItems, colors, styles
   return (
     <View style={styles.section}>
       <Text style={styles.labelText}>{label}</Text>
-      <View style={styles.chipWrap}>
-        {items.map((item) => (
-          <TouchableOpacity key={item} style={[styles.chip, { backgroundColor: chipColor }]} onPress={() => removeItem(item)}>
-            <Text style={styles.chipText}>{item}</Text>
-            <Text style={styles.chipRemove}>×</Text>
-          </TouchableOpacity>
-        ))}
-        <TextInput
-          style={styles.chipInput}
-          placeholder="Ekle..."
-          placeholderTextColor={colors.textSub}
-          value={input}
-          onChangeText={onChange}
-          onSubmitEditing={() => addItem(input)}
-          blurOnSubmit={false}
-          maxLength={60}
-        />
-      </View>
-      {suggestions.length > 0 && (
-        <View style={styles.suggestionBox}>
-          {suggestions.map((s, index) => (
-            <TouchableOpacity key={index} style={styles.suggestionItem} onPress={() => addItem(s)}>
-              <Text style={styles.suggestionText}>{s}</Text>
+      <View style={[styles.fieldWrapper, { zIndex }]}>
+        <View style={styles.chipBox}>
+          {items.map((item) => (
+            <TouchableOpacity
+              key={item}
+              style={[styles.chip, { backgroundColor: chipColor, borderColor: chipColor }]}
+              onPress={() => removeItem(item)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.chipText} numberOfLines={1} ellipsizeMode="tail">{truncateItem(item)}</Text>
+              <Text style={styles.chipRemove}>×</Text>
             </TouchableOpacity>
           ))}
+          <TextInput
+            style={styles.chipInput}
+            placeholder={items.length === 0 ? 'Ekle...' : ''}
+            placeholderTextColor={colors.textSub}
+            value={input}
+            onChangeText={onChange}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            onSubmitEditing={() => addItem(input)}
+            blurOnSubmit={false}
+            editable={items.length < maxItems}
+            maxLength={60}
+          />
         </View>
-      )}
+        {focused && suggestions.length > 0 && (
+          <View style={styles.suggestionBox}>
+            {suggestions.map((s, index) => (
+              <TouchableOpacity
+                key={index}
+                style={[styles.suggestionItem, index === suggestions.length - 1 && { borderBottomWidth: 0 }]}
+                onPress={() => addItem(s)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.suggestionText}>{s}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+      </View>
+      <Text style={styles.chipHint}>
+        {items.length > 0
+          ? `${items.length}/${maxItems} eklendi · dokunarak kaldırabilirsin`
+          : `Yazıp ekleyebilir veya önerilerden seçebilirsin (en fazla ${maxItems})`}
+      </Text>
     </View>
   );
 };
@@ -121,6 +148,10 @@ export default function DemographicEdit() {
   const [languages, setLanguages] = useState([]);
   const [interests, setInterests] = useState([]);
 
+  const [showSkills, setShowSkills] = useState(true);
+  const [showLanguages, setShowLanguages] = useState(true);
+  const [showInterests, setShowInterests] = useState(true);
+
   const [citySuggestions, setCitySuggestions] = useState([]);
 
   useEffect(() => {
@@ -137,6 +168,9 @@ export default function DemographicEdit() {
           setSkills(d.skills || []);
           setLanguages(d.languages || []);
           setInterests(d.interests || []);
+          setShowSkills(d.showSkills !== false);
+          setShowLanguages(d.showLanguages !== false);
+          setShowInterests(d.showInterests !== false);
         }
       } catch (e) {
         console.error('Demografik bilgi çekme hatası:', e);
@@ -158,6 +192,9 @@ export default function DemographicEdit() {
         skills,
         languages,
         interests,
+        showSkills,
+        showLanguages,
+        showInterests,
       });
       navigation.goBack();
     } catch (e) {
@@ -178,20 +215,16 @@ export default function DemographicEdit() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <KeyboardAvoidingView
-        style={styles.innerContent}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={styles.flex}>
+          <View style={styles.innerContent}>
             <View style={styles.header}>
-              <Pressable onPress={() => navigation.goBack()} style={styles.backBtn} hitSlop={10}>
-                <Image
-                  source={require('../../assets/images/back.png')}
-                  style={[styles.backIcon, { tintColor: colors.iconTint }]}
-                />
+              <Pressable onPress={() => navigation.goBack()}>
+                <Image source={require('../../assets/images/back.png')} style={[styles.backIcon, { tintColor: colors.iconTint }]} />
               </Pressable>
               <Text style={styles.title}>Kişisel Bilgiler</Text>
-              <View style={styles.backBtn} />
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
@@ -211,7 +244,7 @@ export default function DemographicEdit() {
                         setCity(text);
                         if (text.length > 0) {
                           setCitySuggestions(
-                            SUGGESTED_CITIES.filter(c => c.toLowerCase().includes(text.toLowerCase())).slice(0, 5)
+                            SUGGESTED_CITIES.filter(c => c.toLowerCase().includes(text.toLowerCase())).slice(0, 6)
                           );
                         } else {
                           setCitySuggestions([]);
@@ -257,35 +290,65 @@ export default function DemographicEdit() {
                 <Text style={styles.characterCount}>{bio.length}/500</Text>
               </View>
 
-              <ChipInput
-                label="Beceriler"
-                chipColor={colors.primary + '22'}
-                items={skills}
-                setItems={setSkills}
-                allItems={SUGGESTED_SKILLS}
-                colors={colors}
-                styles={styles}
-              />
+              <View style={styles.section}>
+                <TouchableOpacity style={[styles.showBox, showSkills && styles.showBoxActive]} onPress={() => setShowSkills(!showSkills)} activeOpacity={0.8}>
+                  <View style={[styles.checkbox, showSkills && styles.checkboxActive]}>
+                    {showSkills && <Text style={styles.checkmark}>✓</Text>}
+                  </View>
+                  <Text style={styles.showText}>Becerileri profilde göster</Text>
+                </TouchableOpacity>
 
-              <ChipInput
-                label="Diller"
-                chipColor={colors.primary + '33'}
-                items={languages}
-                setItems={setLanguages}
-                allItems={SUGGESTED_LANGUAGES}
-                colors={colors}
-                styles={styles}
-              />
+                <ChipInput
+                  label="Beceriler"
+                  chipColor={colors.primary + '22'}
+                  items={skills}
+                  setItems={setSkills}
+                  allItems={SUGGESTED_SKILLS}
+                  colors={colors}
+                  styles={styles}
+                  zIndex={70}
+                />
+              </View>
 
-              <ChipInput
-                label="İlgi Alanları"
-                chipColor={colors.primary + '44'}
-                items={interests}
-                setItems={setInterests}
-                allItems={SUGGESTED_INTERESTS}
-                colors={colors}
-                styles={styles}
-              />
+              <View style={styles.section}>
+                <TouchableOpacity style={[styles.showBox, showLanguages && styles.showBoxActive]} onPress={() => setShowLanguages(!showLanguages)} activeOpacity={0.8}>
+                  <View style={[styles.checkbox, showLanguages && styles.checkboxActive]}>
+                    {showLanguages && <Text style={styles.checkmark}>✓</Text>}
+                  </View>
+                  <Text style={styles.showText}>Dilleri profilde göster</Text>
+                </TouchableOpacity>
+
+                <ChipInput
+                  label="Diller"
+                  chipColor={colors.primary + '33'}
+                  items={languages}
+                  setItems={setLanguages}
+                  allItems={SUGGESTED_LANGUAGES}
+                  colors={colors}
+                  styles={styles}
+                  zIndex={60}
+                />
+              </View>
+
+              <View style={styles.section}>
+                <TouchableOpacity style={[styles.showBox, showInterests && styles.showBoxActive]} onPress={() => setShowInterests(!showInterests)} activeOpacity={0.8}>
+                  <View style={[styles.checkbox, showInterests && styles.checkboxActive]}>
+                    {showInterests && <Text style={styles.checkmark}>✓</Text>}
+                  </View>
+                  <Text style={styles.showText}>İlgi alanlarını profilde göster</Text>
+                </TouchableOpacity>
+
+                <ChipInput
+                  label="İlgi Alanları"
+                  chipColor={colors.primary + '44'}
+                  items={interests}
+                  setItems={setInterests}
+                  allItems={SUGGESTED_INTERESTS}
+                  colors={colors}
+                  styles={styles}
+                  zIndex={50}
+                />
+              </View>
             </ScrollView>
 
             <Pressable
@@ -313,6 +376,7 @@ const getStyles = (colors) => StyleSheet.create({
   },
   innerContent: {
     flex: 1,
+    padding: 20,
   },
   flex: {
     flex: 1,
@@ -324,8 +388,7 @@ const getStyles = (colors) => StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    height: 56,
+    marginBottom: 25,
   },
   backBtn: {
     width: 32,
@@ -341,6 +404,7 @@ const getStyles = (colors) => StyleSheet.create({
     fontSize: 18,
     flex: 1,
     textAlign: 'center',
+    marginRight: 32,
     fontWeight: 'bold',
   },
   sectionHint: {
@@ -395,52 +459,137 @@ const getStyles = (colors) => StyleSheet.create({
     textAlign: 'right',
     marginTop: 4,
   },
-  chipWrap: {
+  fieldWrapper: {
+    position: 'relative',
+    width: '100%',
+  },
+  chipBox: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
     gap: 8,
+    backgroundColor: colors.mode === 'dark' ? '#13151C' : colors.border,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    minHeight: 50,
+  },
+  chipBoxFocused: {
+    borderColor: colors.primary,
   },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
+    justifyContent: 'center',
+    width: '31%',
+    marginBottom: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 10,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.border,
+    backgroundColor: colors.cardBackground,
   },
   chipText: {
     color: colors.textMain,
-    fontSize: 14,
+    fontSize: 13,
+    textAlign: 'center',
   },
   chipRemove: {
     color: colors.textSub,
-    fontSize: 16,
-    marginLeft: 6,
+    fontSize: 13,
+    marginLeft: 5,
     fontWeight: 'bold',
+    opacity: 0.8,
   },
   chipInput: {
     minWidth: 90,
     flexGrow: 1,
+    flexShrink: 1,
     color: colors.textMain,
     fontSize: 15,
+    paddingVertical: 6,
+    minHeight: 30,
+  },
+  chipHint: {
+    color: colors.textSub,
+    fontSize: 11,
+    marginTop: 6,
+  },
+  showRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    backgroundColor: colors.mode === 'dark' ? '#13151C' : colors.border,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 15,
     paddingVertical: 8,
+  },
+  showBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 12,
+    backgroundColor: colors.mode === 'dark' ? '#13151C' : colors.border,
+  },
+  showBoxActive: {
+    borderColor: colors.primary,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: colors.textSub,
+    marginRight: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+  },
+  checkboxActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary,
+  },
+  checkmark: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  showText: {
+    color: colors.textMain,
+    fontSize: 14,
+    fontWeight: '500',
+    flex: 1,
   },
   suggestionBox: {
     position: 'absolute',
-    top: 55,
+    top: '100%',
     left: 0,
     right: 0,
+    marginTop: 4,
     backgroundColor: colors.cardBackground,
-    borderRadius: 20,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.border,
     zIndex: 1000,
-    elevation: 5,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    overflow: 'hidden',
   },
   suggestionItem: {
-    padding: 14,
+    padding: 13,
     borderBottomWidth: 0.5,
     borderBottomColor: colors.border,
   },
@@ -449,12 +598,10 @@ const getStyles = (colors) => StyleSheet.create({
     fontSize: 14,
   },
   publishBtn: {
-    marginHorizontal: 16,
-    marginVertical: 12,
-    height: 50,
+    paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
-    justifyContent: 'center',
+    marginTop: 10,
   },
   publishText: {
     color: 'white',

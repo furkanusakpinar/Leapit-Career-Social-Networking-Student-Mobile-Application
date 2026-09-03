@@ -118,7 +118,6 @@ export function SharePage() {
     try {
       let finalMediaUri = currentMedia.uri;
       if (finalMediaUri && !finalMediaUri.startsWith('http')) {
-        // Upload to Cloudinary first
         finalMediaUri = await uploadToCloudinary(finalMediaUri, currentMedia.type);
       }
 

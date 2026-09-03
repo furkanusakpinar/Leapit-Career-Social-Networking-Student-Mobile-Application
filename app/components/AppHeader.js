@@ -93,7 +93,6 @@ const AppHeader = () => {
         }
       });
 
-      // Jobs
       const jobsRef = collection(db, 'JobsPosts');
       const querySnapshotJobs = await getDocs(jobsRef);
       querySnapshotJobs.forEach((docSnap) => {
@@ -180,7 +179,6 @@ const AppHeader = () => {
         </Pressable>
       </View>
 
-      {/* Arama Sonuçları Listesi */}
       {showSearchResults && searchQuery.length > 0 && (
         <View style={[styles.searchResultsOverlay, { top: insets.top + 68 }]}>
           {searchResults.length > 0 ? (
@@ -234,7 +232,7 @@ const getStyles = (colors) => StyleSheet.create({
   profileImage: {
     width: 38,
     height: 38,
-    borderRadius: 19,
+    borderRadius: 14,
     backgroundColor: colors.cardBackground,
     borderWidth: 1,
     borderColor: colors.border

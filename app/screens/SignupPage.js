@@ -123,9 +123,8 @@ const SignupPage = () => {
     const navigation = useNavigation();
     const dispatch = useDispatch();
 
-    // BottomSheet state
     const [sheetVisible, setSheetVisible] = useState(false);
-    const [pendingResume, setPendingResume] = useState(null); // { docId, step, existingDocId }
+    const [pendingResume, setPendingResume] = useState(null);
 
     const openSheet = (data) => {
         setPendingResume(data);
@@ -180,7 +179,6 @@ const SignupPage = () => {
 
         const prepareAuthPage = async () => {
             try {
-                // Son 20 dk içinde kayıt denemesi yapıldıysa e-postayı geri yükle
                 const saved = await AsyncStorage.getItem('signup_attempt');
                 if (saved) {
                     const { email: savedEmail, timestamp } = JSON.parse(saved);
@@ -286,7 +284,6 @@ const SignupPage = () => {
                 const TWENTY_MINUTES = 20 * 60 * 1000;
 
                 if (elapsedMs <= TWENTY_MINUTES) {
-                    // 20 dk içinde — BottomSheet sor
                     let step = 'CreateProfile';
                     try {
                         const step1Raw = await AsyncStorage.getItem('step1_completed');
@@ -301,7 +298,6 @@ const SignupPage = () => {
                     openSheet({ docId: existingDoc.id, step });
                     return;
                 } else {
-                    // 20 dk geçmiş — sil ve yeniden kayıt et
                     await deleteDoc(doc(db, 'Users', existingDoc.id));
                     await AsyncStorage.multiRemove(['create_profile_draft', 'create_page2_draft', 'student_page_draft', 'step1_completed']);
                 }
@@ -392,16 +388,14 @@ const SignupPage = () => {
             </View>
 
 
-            {/* BottomSheet Modal */}
             <BottomSheet
                 visible={sheetVisible}
                 onClose={closeSheet}
                 title="Kaldığın Yerden Devam Et"
                 subtitle="Bu e-posta ile yakın zamanda yarım bırakılmış bir kayıt bulundu. Devam etmek ister misin?"
+                contentStyle={bsStyles.content}
+                hideCloseIcon
             >
-                <View style={bsStyles.iconCircle}>
-                    <Text style={{ fontSize: 32 }}>⏱️</Text>
-                </View>
                 <Pressable style={[bsStyles.btnYes, { backgroundColor: colors.primary }]} onPress={handleResumeYes}>
                     <Text style={bsStyles.btnYesText}>Evet, Devam Et</Text>
                 </Pressable>
@@ -458,15 +452,10 @@ const getStyles = (colors) => StyleSheet.create({
 });
 
 const bsStyles = StyleSheet.create({
-    iconCircle: {
-        width: 72,
-        height: 72,
-        borderRadius: 36,
-        justifyContent: 'center',
-        alignItems: 'center',
-        alignSelf: 'center',
-        backgroundColor: 'rgba(0,102,255,0.13)',
-        marginBottom: 24,
+    content: {
+        paddingHorizontal: 20,
+        paddingTop: 20,
+        paddingBottom: 12,
     },
     btnYes: {
         width: '100%',
@@ -490,7 +479,6 @@ const bsStyles = StyleSheet.create({
         justifyContent: 'center',
         borderWidth: 1.5,
         paddingHorizontal: 24,
-        marginBottom: 24,
     },
     btnNoText: {
         fontWeight: '600',

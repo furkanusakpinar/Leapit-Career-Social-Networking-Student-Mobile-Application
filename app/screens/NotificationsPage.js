@@ -1,4 +1,4 @@
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import { useNavigation, useIsFocused } from "@react-navigation/native";
 import {
   collection,
@@ -120,22 +120,13 @@ function PendingConnectionCard({ request, colors, onAccept, onReject, actionLoad
             {request.senderUserName || "Isimsiz"}
           </Text>
           {!!request.senderUserJob && (
-            <View style={pcStyles.infoRow}>
-              <MaterialCommunityIcons name="briefcase-outline" size={12} color={colors.textSub} style={{ marginRight: 4 }} />
-              <Text style={[pcStyles.infoText, { color: colors.textSub }]} numberOfLines={1}>{request.senderUserJob}</Text>
-            </View>
+            <Text style={[pcStyles.infoText, { color: colors.textSub }]} numberOfLines={1}>{request.senderUserJob}</Text>
           )}
           {!!request.senderSchool && (
-            <View style={pcStyles.infoRow}>
-              <MaterialCommunityIcons name="school-outline" size={12} color={colors.textSub} style={{ marginRight: 4 }} />
-              <Text style={[pcStyles.infoText, { color: colors.textSub }]} numberOfLines={1}>{request.senderSchool}</Text>
-            </View>
+            <Text style={[pcStyles.infoText, { color: colors.textSub }]} numberOfLines={1}>{request.senderSchool}</Text>
           )}
           {!!request.senderLocation && (
-            <View style={pcStyles.infoRow}>
-              <MaterialCommunityIcons name="map-marker-outline" size={12} color={colors.textSub} style={{ marginRight: 4 }} />
-              <Text style={[pcStyles.infoText, { color: colors.textSub }]} numberOfLines={1}>{request.senderLocation}</Text>
-            </View>
+            <Text style={[pcStyles.infoText, { color: colors.textSub }]} numberOfLines={1}>{request.senderLocation}</Text>
           )}
           <Text style={[pcStyles.timeText, { color: colors.textSub }]}>{request.timeStr}</Text>
         </View>
@@ -201,16 +192,25 @@ export default function NotificationsPage() {
       orderBy("createdAt", "desc")
     );
 
-    unsubRef.current = onSnapshot(q, (snap) => {
+    unsubRef.current = onSnapshot(q, async (snap) => {
       const batch = writeBatch(db);
       let hasUnread = false;
-      const fetched = snap.docs.map(d => {
+      const fetched = await Promise.all(snap.docs.map(async d => {
         const data = d.data();
         if (isFocused && !data.isRead) {
           hasUnread = true;
           batch.update(doc(db, "Users", userId, "notifications", d.id), { isRead: true });
         }
         const rawDate = data.createdAt?.toDate?.() ?? new Date();
+        let sourceProfileImageUrl = null;
+        if (data.type === "follow" && data.sourceUserId) {
+          try {
+            const sourceDoc = await getDoc(doc(db, "Users", data.sourceUserId));
+            if (sourceDoc.exists()) {
+              sourceProfileImageUrl = sourceDoc.data().profileImageUrl || null;
+            }
+          } catch (_) {}
+        }
         return {
           id:      d.id,
           type:    data.type || "",
@@ -219,8 +219,9 @@ export default function NotificationsPage() {
           timeStr: formatTime(rawDate),
           rawDate,
           sourceUserId: data.sourceUserId || null,
+          sourceProfileImageUrl,
         };
-      });
+      }));
       if (hasUnread) batch.commit().catch(err => console.error(err));
       setNotifications(fetched);
       setLoading(false);
@@ -397,9 +398,16 @@ export default function NotificationsPage() {
             {selected && <MaterialCommunityIcons name="check" size={14} color="white" />}
           </View>
         )}
-        <View style={[styles.iconWrap, { backgroundColor: meta.color + "18" }]}>
-          <MaterialCommunityIcons name={meta.icon} size={26} color={meta.color} />
-        </View>
+        {item.type === "follow" && item.sourceProfileImageUrl ? (
+          <Image
+            source={{ uri: item.sourceProfileImageUrl }}
+            style={[styles.avatarIcon, { borderColor: colors.border }]}
+          />
+        ) : (
+          <View style={[styles.iconWrap, { backgroundColor: meta.color + "18" }]}>
+            <MaterialCommunityIcons name={meta.icon} size={26} color={meta.color} />
+          </View>
+        )}
         <View style={styles.textWrap}>
           <Text style={[styles.itemTitle, { color: colors.textMain }]} numberOfLines={1}>{meta.title}</Text>
           <Text style={[styles.itemMsg,   { color: colors.textSub  }]} numberOfLines={2}>{item.content}</Text>
@@ -496,7 +504,6 @@ export default function NotificationsPage() {
             contentContainerStyle={{ padding: 12, paddingBottom: 100 }}
             ListEmptyComponent={
               <View style={styles.center}>
-                <MaterialCommunityIcons name="account-clock-outline" size={60} color={colors.textSub} />
                 <Text style={[styles.emptyText, { color: colors.textSub }]}>Bekleyen bağlantı isteği yok.</Text>
               </View>
             }
@@ -588,6 +595,7 @@ const getStyles = (colors) => StyleSheet.create({
   item: { flexDirection: "row", alignItems: "center", backgroundColor: colors.cardBackground, borderRadius: 18, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: colors.border, gap: 12 },
   unread: { borderLeftWidth: 3, borderLeftColor: colors.primary },
   iconWrap: { width: 48, height: 48, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  avatarIcon: { width: 48, height: 48, borderRadius: 14, borderWidth: 1 },
   textWrap: { flex: 1 },
   itemTitle: { fontSize: 15, fontWeight: "700", marginBottom: 2 },
   itemMsg:   { fontSize: 13, lineHeight: 18 },

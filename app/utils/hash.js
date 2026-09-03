@@ -1,4 +1,3 @@
-// Pure JS implementation of SHA-256
 export function hashPassword(ascii) {
   if (typeof ascii !== 'string') {
     ascii = String(ascii);
@@ -11,7 +10,7 @@ export function hashPassword(ascii) {
   var mathPow = Math.pow;
   var maxWord = mathPow(2, 32);
   var lengthProperty = 'length';
-  var i, j; // Used as a loop index
+  var i, j;
   var result = '';
 
   var words = [];
@@ -37,7 +36,7 @@ export function hashPassword(ascii) {
   while (ascii[lengthProperty] % 64 - 56) ascii += '\x00';
   for (i = 0; i < ascii[lengthProperty]; i++) {
     j = ascii.charCodeAt(i);
-    if (j >> 8) return ''; // ASCII only or fallback
+    if (j >> 8) return '';
     words[i >> 2] |= j << ((3 - i % 4) * 8);
   }
   words[words[lengthProperty]] = ((asciiLength / maxWord) | 0);

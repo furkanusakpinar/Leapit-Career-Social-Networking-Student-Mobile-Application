@@ -6,13 +6,6 @@ import { lightTheme, darkTheme } from '../theme/colors';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-/**
- * Ortak alt sayfa (bottom sheet) tasarımı.
- * - Karartılmış arka plan (fade) + alttan kayma animasyonu
- * - Tutamaç çubuğu (sürükleyerek kapatılabilir)
- * - Opsiyonel başlık / alt başlık + sağ üst kapatma butonu
- * Tüm uygulama bottom sheet'leri bu bileşeni kullanır.
- */
 export default function BottomSheet({
   visible,
   onClose,
@@ -22,6 +15,8 @@ export default function BottomSheet({
   contentStyle,
   testID,
   transparent,
+  hideCloseIcon,
+  dismissOnContentSwipe,
 }) {
   const themeMode = useSelector(state => state.theme?.mode || 'dark');
   const colors = themeMode === 'light' ? lightTheme : darkTheme;
@@ -44,7 +39,6 @@ export default function BottomSheet({
         Animated.timing(backdrop, { toValue: 0, duration: 250, useNativeDriver: true }),
       ]).start(() => setMounted(false));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   const handleRelease = () => {
@@ -76,7 +70,6 @@ export default function BottomSheet({
           }
         },
       }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [onClose, handleRelease]
   );
 
@@ -89,7 +82,10 @@ export default function BottomSheet({
           <Pressable style={styles.backdropPressable} onPress={onClose} />
         </Animated.View>
 
-        <Animated.View style={[styles.sheet, transparent && styles.sheetTransparent, { transform: [{ translateY }] }]}>
+        <Animated.View
+          {...(dismissOnContentSwipe ? panResponder.panHandlers : {})}
+          style={[styles.sheet, transparent && styles.sheetTransparent, { transform: [{ translateY }] }]}
+        >
           <View style={styles.handleHitArea} {...panResponder.panHandlers}>
             <View style={[styles.handle, { backgroundColor: colors.border }]} />
           </View>
@@ -109,7 +105,7 @@ export default function BottomSheet({
                   </Text>
                 )}
               </View>
-              {onClose ? (
+              {!hideCloseIcon && onClose ? (
                 <Pressable onPress={onClose} hitSlop={10} style={styles.headerSide}>
                   <MaterialCommunityIcons name="close" size={22} color={colors.textSub} />
                 </Pressable>

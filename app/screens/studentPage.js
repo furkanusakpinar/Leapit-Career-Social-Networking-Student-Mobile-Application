@@ -110,7 +110,6 @@ export default function StudentPage() {
   useEffect(() => {
     const fetchTypes = async () => {
       try {
-        // Son 20 dk içindeki ilerlemeyi geri yükle
         const saved = await AsyncStorage.getItem('student_page_draft');
         if (saved) {
           const { data, timestamp } = JSON.parse(saved);
@@ -156,7 +155,6 @@ export default function StudentPage() {
     fetchTypes();
   }, []);
 
-  // Tüm form alanlarını otomatik kaydet
   useEffect(() => {
     const saveDraft = async () => {
       try {

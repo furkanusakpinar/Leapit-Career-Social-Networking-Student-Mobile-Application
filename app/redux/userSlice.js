@@ -8,7 +8,7 @@ const initialState = {
   userId: null,
   userInfo: {},
   publicVisibility: false,
-  profileStep: null, // null | 'CreateProfile' | 'StudentPage' | 'CreatePage2'
+  profileStep: null,
 };
 
 export const userSlice = createSlice({

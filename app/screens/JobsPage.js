@@ -104,7 +104,6 @@ const JobsPage = () => {
     fetchJobPosts();
   }, [fetchJobPosts]);
 
-  // Fetch current user's pending posts with logos
   useEffect(() => {
     if (!userId) return;
     const postsRef = collection(db, 'JobsPosts');
@@ -184,7 +183,6 @@ const JobsPage = () => {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
       >
         {jobTabFilterIndex === 2 ? (
-          // Onay Bekleyen İlanlar
           pendingPosts.length > 0 ? (
             pendingPosts.map(post => (
               <View key={post.id} style={[styles.card, { borderColor: '#f59e0b', borderWidth: 1.5 }]}>
@@ -221,7 +219,6 @@ const JobsPage = () => {
             <Text style={styles.noPostsText}>Onay bekleyen ilanınız bulunmamaktadır.</Text>
           )
         ) : (
-          // Sizin için / Keşfet
           posts.length > 0 ? (
             posts.map(post => (
               <View key={post.id} style={styles.card}>

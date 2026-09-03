@@ -1,18 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, Image, TextInput, Pressable, FlatList, Modal, ActivityIndicator, Alert, Linking, Dimensions, Platform, TouchableOpacity, BackHandler, Keyboard, Animated as RNAnimated } from 'react-native';
-import Toast from 'react-native-toast-message';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation, useRoute } from '@react-navigation/native';
-import { PanGestureHandler } from 'react-native-gesture-handler';
-import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import { useSelector } from 'react-redux';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import moment from 'moment';
-import 'moment/locale/tr';
-import Swipeable from 'react-native-gesture-handler/Swipeable';
-import VideoPlayer from '../components/VideoPlayer';
-import VideoThumbnail from '../components/VideoThumbnail';
-import { uploadToCloudinary } from '../utils/cloudinary';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import {
   addDoc,
   arrayUnion,
@@ -27,36 +14,41 @@ import {
   setDoc,
   updateDoc,
 } from 'firebase/firestore';
+import moment from 'moment';
+import 'moment/locale/tr';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Animated, BackHandler, Dimensions, FlatList, Image, Keyboard, Modal, Platform, Pressable, StyleSheet, Text, TextInput, ToastAndroid, TouchableOpacity, View } from 'react-native';
+import Swipeable from 'react-native-gesture-handler/Swipeable';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSelector } from 'react-redux';
 import { db } from '../../firebaseConfig';
-import { lightTheme, darkTheme } from '../theme/colors';
+import VideoPlayer from '../components/VideoPlayer';
+import VideoThumbnail from '../components/VideoThumbnail';
+import { darkTheme, lightTheme } from '../theme/colors';
 
 moment.locale('tr');
 
 const showToast = (msg) => {
-  Toast.show({ type: 'info', text1: msg });
+  if (Platform.OS === 'android') {
+    ToastAndroid.show(msg, ToastAndroid.SHORT);
+  }
 };
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-const starterSuggestions = [
-  'Merhaba, nasılsın?',
-  'Profilini çok beğendim',
-  'Tanıştığımıza memnun oldum',
-];
-
 const TypingIndicator = ({ color }) => {
-  const dot1 = useRef(new RNAnimated.Value(0.3)).current;
-  const dot2 = useRef(new RNAnimated.Value(0.3)).current;
-  const dot3 = useRef(new RNAnimated.Value(0.3)).current;
+  const dot1 = useRef(new Animated.Value(0.3)).current;
+  const dot2 = useRef(new Animated.Value(0.3)).current;
+  const dot3 = useRef(new Animated.Value(0.3)).current;
 
   useEffect(() => {
     const makeLoop = (v) =>
-      RNAnimated.sequence([
-        RNAnimated.timing(v, { toValue: 1, duration: 400, useNativeDriver: true }),
-        RNAnimated.timing(v, { toValue: 0.3, duration: 400, useNativeDriver: true }),
+      Animated.sequence([
+        Animated.timing(v, { toValue: 1, duration: 400, useNativeDriver: true }),
+        Animated.timing(v, { toValue: 0.3, duration: 400, useNativeDriver: true }),
       ]);
-    const loop = RNAnimated.loop(
-      RNAnimated.stagger(180, [makeLoop(dot1), makeLoop(dot2), makeLoop(dot3)])
+    const loop = Animated.loop(
+      Animated.stagger(180, [makeLoop(dot1), makeLoop(dot2), makeLoop(dot3)])
     );
     loop.start();
     return () => loop.stop();
@@ -66,7 +58,7 @@ const TypingIndicator = ({ color }) => {
     <View style={{ flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start' }}>
       <View style={{ flexDirection: 'row', marginRight: 5 }}>
         {[dot1, dot2, dot3].map((v, i) => (
-          <RNAnimated.View
+          <Animated.View
             key={i}
             style={{
               width: 5,
@@ -86,83 +78,53 @@ const TypingIndicator = ({ color }) => {
 };
 
 const MessagePressable = ({ children, onPress, onLongPress, style }) => {
-  const scale = useRef(new RNAnimated.Value(1)).current;
+  const scale = useRef(new Animated.Value(1)).current;
 
   return (
-    <RNAnimated.View style={{ transform: [{ scale }] }}>
+    <Animated.View style={{ transform: [{ scale }] }}>
       <Pressable
         onPress={onPress}
         onLongPress={onLongPress}
         onPressIn={() => {
-          RNAnimated.spring(scale, { toValue: 0.93, useNativeDriver: true, speed: 50, bounciness: 4 }).start();
+          Animated.spring(scale, { toValue: 0.93, useNativeDriver: true, speed: 50, bounciness: 4 }).start();
         }}
         onPressOut={() => {
-          RNAnimated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 50, bounciness: 4 }).start();
+          Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 50, bounciness: 4 }).start();
         }}
         style={style}
       >
         {children}
       </Pressable>
-    </RNAnimated.View>
+    </Animated.View>
   );
 };
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-
-const ActionSheet = ({ visible, onClose, children }) => {
-  const [mounted, setMounted] = useState(false);
-  const translateY = useSharedValue(SCREEN_HEIGHT);
-  const backdropOpacity = useSharedValue(0);
+const AnimatedBottomModal = ({ visible, onRequestClose, children }) => {
+  const slideAnim = useRef(new Animated.Value(1)).current;
+  const [show, setShow] = useState(false);
 
   useEffect(() => {
     if (visible) {
-      setMounted(true);
-      translateY.value = withTiming(0, { duration: 250 });
-      backdropOpacity.value = withTiming(1, { duration: 300 });
-    } else if (mounted) {
-      translateY.value = withTiming(SCREEN_HEIGHT, { duration: 250 });
-      backdropOpacity.value = withTiming(0, { duration: 250 }, (finished) => {
-        if (finished) runOnJS(setMounted)(false);
-      });
+      setShow(true);
+      slideAnim.setValue(1);
+      Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, speed: 50, bounciness: 6 }).start();
+    } else if (show) {
+      Animated.timing(slideAnim, { toValue: 1, duration: 200, useNativeDriver: true }).start(() => setShow(false));
     }
   }, [visible]);
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-  }));
-
-  const backdropStyle = useAnimatedStyle(() => ({
-    opacity: backdropOpacity.value,
-  }));
-
-  const gestureHandler = (e) => {
-    if (e.nativeEvent.translationY > 0) {
-      translateY.value = e.nativeEvent.translationY;
-    }
-  };
-
-  const gestureEnd = () => {
-    if (translateY.value > 150) {
-      runOnJS(onClose)();
-    } else {
-      translateY.value = withTiming(0, { duration: 250 });
-    }
-  };
-
-  if (!visible && !mounted) return null;
-
   return (
-    <Modal transparent visible={mounted} animationType="none" onRequestClose={onClose}>
-      <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)' }, backdropStyle]}>
-          <Pressable style={{ flex: 1 }} onPress={onClose} />
+    <Modal transparent visible={show} animationType="fade" onRequestClose={onRequestClose}>
+      <Pressable style={styles.modalOverlay} onPress={onRequestClose}>
+        <Animated.View style={{
+          width: '100%',
+          alignItems: 'center',
+          transform: [{ translateY: slideAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 500] }) }],
+          opacity: slideAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+        }}>
+          {children}
         </Animated.View>
-        <PanGestureHandler onGestureEvent={gestureHandler} onEnded={gestureEnd}>
-          <Animated.View style={[{ width: '100%', justifyContent: 'flex-end' }, animatedStyle]}>
-            {children}
-          </Animated.View>
-        </PanGestureHandler>
-      </View>
+      </Pressable>
     </Modal>
   );
 };
@@ -249,13 +211,17 @@ export default function SendMessage() {
   useEffect(() => {
     if (!currentUserId) {
       console.error("SendMessage: Current user ID is missing.");
-      Toast.show({ type: 'error', text1: 'Kullanıcı kimliğiniz alınamadı. Lütfen tekrar giriş yapın.' });
+      if (Platform.OS === 'android') {
+        ToastAndroid.show("Kullanıcı kimliğiniz alınamadı. Lütfen tekrar giriş yapın.", ToastAndroid.LONG);
+      }
       setLoading(false);
       return;
     }
     if (!recipientId) {
       console.error("SendMessage: Recipient ID is missing from navigation parameters.");
-      Toast.show({ type: 'error', text1: 'Sohbet edilecek kişi bilgisi eksik.' });
+      if (Platform.OS === 'android') {
+        ToastAndroid.show("Sohbet edilecek kişi bilgisi eksik.", ToastAndroid.LONG);
+      }
       setLoading(false);
       return;
     }
@@ -309,7 +275,9 @@ export default function SendMessage() {
       setLoading(false);
     }, (error) => {
       console.error("Error fetching messages from Firestore: ", error);
-      Toast.show({ type: 'error', text1: 'Mesajlar yüklenirken bir sorun oluştu.' });
+      if (Platform.OS === 'android') {
+        ToastAndroid.show("Mesajlar yüklenirken bir sorun oluştu.", ToastAndroid.LONG);
+      }
       setLoading(false);
     });
 
@@ -322,7 +290,7 @@ export default function SendMessage() {
       typingFlushTimer.current = null;
     }
     if (!chatId || !currentUserId) return;
-    setDoc(doc(db, 'chats', chatId, 'typing', currentUserId), { isTyping: false }, { merge: true }).catch(() => {});
+    setDoc(doc(db, 'chats', chatId, 'typing', currentUserId), { isTyping: false }, { merge: true }).catch(() => { });
   }, [chatId, currentUserId]);
 
   const sendTyping = useCallback(() => {
@@ -330,12 +298,12 @@ export default function SendMessage() {
     const now = Date.now();
     if (now - typingLastSent.current > 1500) {
       typingLastSent.current = now;
-      setDoc(doc(db, 'chats', chatId, 'typing', currentUserId), { isTyping: true, timestamp: serverTimestamp() }, { merge: true }).catch(() => {});
+      setDoc(doc(db, 'chats', chatId, 'typing', currentUserId), { isTyping: true, timestamp: serverTimestamp() }, { merge: true }).catch(() => { });
     }
     if (typingFlushTimer.current) clearTimeout(typingFlushTimer.current);
     typingFlushTimer.current = setTimeout(() => {
       typingFlushTimer.current = null;
-      setDoc(doc(db, 'chats', chatId, 'typing', currentUserId), { isTyping: false }, { merge: true }).catch(() => {});
+      setDoc(doc(db, 'chats', chatId, 'typing', currentUserId), { isTyping: false }, { merge: true }).catch(() => { });
     }, 2500);
   }, [chatId, currentUserId]);
 
@@ -375,10 +343,9 @@ export default function SendMessage() {
     }
   };
 
-  const handleSendMessage = async (overrideMessage) => {
-    const textToSend = (overrideMessage !== undefined ? overrideMessage : message);
-    if (textToSend.trim() && chatId && currentUserId && recipientId && currentUserName) {
-      const currentMessage = textToSend.trim();
+  const handleSendMessage = async () => {
+    if (message.trim() && chatId && currentUserId && recipientId && currentUserName) {
+      const currentMessage = message.trim();
       setMessage('');
       clearTyping();
       if (flatListRef.current) {
@@ -388,21 +355,23 @@ export default function SendMessage() {
       try {
         const timestamp = new Date();
 
-        
+
         if (editingMessage) {
           const messageDocRef = doc(db, 'chats', chatId, 'messages', editingMessage.id);
           await updateDoc(messageDocRef, {
             text: currentMessage,
             updatedAt: timestamp,
           });
-          
+
           if (editingMessage.id === messages[0]?.id) {
             await updateLastMessage(currentMessage, timestamp);
           }
           setEditingMessage(null);
-          Toast.show({ type: 'success', text1: 'Mesaj başarıyla güncellendi.' });
+          if (Platform.OS === 'android') {
+            ToastAndroid.show("Mesaj başarıyla güncellendi.", ToastAndroid.SHORT);
+          }
         } else {
-          
+
           const newMessageData = {
             text: currentMessage,
             senderId: currentUserId,
@@ -445,14 +414,20 @@ export default function SendMessage() {
         setReplyingToMessage(null);
       } catch (error) {
         console.error("Error sending/updating message to Firestore: ", error);
-        Toast.show({ type: 'error', text1: 'Mesaj gönderilirken/güncellenirken hata oluştu. Lütfen tekrar deneyin.' });
+        if (Platform.OS === 'android') {
+          ToastAndroid.show("Mesaj gönderilirken/güncellenirken hata oluştu. Lütfen tekrar deneyin.", ToastAndroid.LONG);
+        }
         setMessage(currentMessage);
       }
-    } else if (!textToSend.trim()) {
-      Toast.show({ type: 'info', text1: 'Boş mesaj gönderilemez.' });
+    } else if (!message.trim()) {
+      if (Platform.OS === 'android') {
+        ToastAndroid.show("Boş mesaj gönderilemez.", ToastAndroid.SHORT);
+      }
     } else {
-      Toast.show({ type: 'error', text1: 'Sohbet bilgileri eksik veya kullanıcı bilgileriniz alınamadı.' });
-      console.log("Debug: textToSend:", textToSend.trim(), "chatId:", chatId, "currentUserId:", currentUserId, "recipientId:", recipientId, "currentUserName:", currentUserName);
+      if (Platform.OS === 'android') {
+        ToastAndroid.show("Sohbet bilgileri eksik veya kullanıcı bilgileriniz alınamadı.", ToastAndroid.SHORT);
+      }
+      console.log("Debug: message:", message.trim(), "chatId:", chatId, "currentUserId:", currentUserId, "recipientId:", recipientId, "currentUserName:", currentUserName);
     }
   };
 
@@ -601,13 +576,13 @@ export default function SendMessage() {
         await updateDoc(messageDocRef, {
           text: 'Mesaj silindi',
           isDeleted: true,
-          
+
           replyToMessageId: null,
           replyToMessageText: null,
           replyToMessageSenderName: null,
         });
 
-        
+
         if (selectedMessage.id === messages[0]?.id) {
           const messagesRef = collection(db, 'chats', chatId, 'messages');
           const q = query(messagesRef, orderBy('createdAt', 'desc'));
@@ -617,12 +592,16 @@ export default function SendMessage() {
           await updateLastMessage(lastMessageText, lastMessageCreatedAt);
         }
 
-        Toast.show({ type: 'success', text1: 'Mesaj başarıyla silindi.' });
+        if (Platform.OS === 'android') {
+          ToastAndroid.show("Mesaj başarıyla silindi.", ToastAndroid.SHORT);
+        }
         setModalVisible(false);
         setSelectedMessage(null);
       } catch (error) {
         console.error("Error deleting message:", error);
-        Toast.show({ type: 'error', text1: 'Mesaj silinirken hata oluştu.' });
+        if (Platform.OS === 'android') {
+          ToastAndroid.show("Mesaj silinirken hata oluştu.", ToastAndroid.SHORT);
+        }
       }
     }
   };
@@ -673,12 +652,9 @@ export default function SendMessage() {
     const repliedToMessageSenderName = item.replyToMessageSenderName || (repliedToMessage?.senderId === currentUserId ? 'Siz' : recipientName);
     const replyPreview = repliedToMessage ? getMessagePreview(repliedToMessage) : (item.replyToMessageText || '');
 
-    // FlatList is inverted, so index 0 is the newest message.
-    // The message chronologically newer (below the current one) is at `index - 1`.
     const isNextMessageSameSender = index > 0 && messages[index - 1]?.senderId === item.senderId;
     const showPointer = !isNextMessageSameSender;
 
-    // Date separator chip between different days (older message is at index + 1)
     const olderMessage = messages[index + 1];
     const showDayLabel = !olderMessage || !moment(item.createdAt).isSame(olderMessage.createdAt, 'day');
 
@@ -706,103 +682,103 @@ export default function SendMessage() {
           renderRightActions={isMyMessage ? () => <View style={styles.swipeReplySpacer} /> : undefined}
           renderLeftActions={!isMyMessage ? () => <View style={styles.swipeReplySpacer} /> : undefined}
         >
-        <MessagePressable
-          onLongPress={() => {
-            if (selectionMode) {
-              toggleSelectMessage(item);
-              return;
-            }
-            handleLongPressMessage(item);
-          }}
-          onPress={() => {
-            if (selectionMode) {
-              toggleSelectMessage(item);
-              return;
-            }
-            if (!item.isDeleted && (item.videoUri || item.type === 'video')) {
-              setFullscreenVideo({
-                uri: item.videoUri,
-                name: isMyMessage ? currentUserName : recipientName,
-                imageUrl: isMyMessage ? currentUserProfileImageUrl : recipientProfileImageUrl,
-              });
-            }
-          }}
-          style={[
-            styles.messageItemContainer,
-            isMyMessage ? styles.myMessageItemContainer : styles.otherMessageItemContainer,
-            isSelected && styles.messageItemSelected,
-          ]}
-        >
-          {selectionMode && (
-            <View style={[styles.selectionBadge, isMyMessage ? styles.selectionBadgeLeft : styles.selectionBadgeRight]}>
-              <Ionicons
-                name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
-                size={22}
-                color={isSelected ? colors.primary : colors.textSub}
-              />
-            </View>
-          )}
-          <View style={[
-            styles.messageBubble,
-            isMyMessage ? styles.myMessageBubble : styles.otherMessageBubble,
-            !item.isDeleted && (item.imageUri || item.videoUri || item.type === 'video') && styles.imageBubble,
-            showPointer && !item.imageUri && !item.videoUri && !item.isDeleted && (isMyMessage ? styles.myMessageBubbleLast : styles.otherMessageBubbleLast),
-            isSelected && styles.messageBubbleSelected,
-          ]}>
-            {item.replyToMessageId && (
-              <View style={[styles.repliedMessageContainer, !isMyMessage && { borderLeftColor: colors.primary }]}>
-                <Text style={[styles.repliedMessageSender, !isMyMessage && { color: colors.primary }]} numberOfLines={1}>
-                  {repliedToMessageSenderName === 'Siz' ? 'Yanıtınız' : `Yanıtlanıyor: ${repliedToMessageSenderName}`}
-                </Text>
-                <Text style={[styles.repliedMessageText, !isMyMessage && { color: colors.textSub }]} numberOfLines={2}>{replyPreview}</Text>
-              </View>
-            )}
-            {item.isDeleted ? (
-              <Text style={[styles.deletedMessageText, !isMyMessage && { color: colors.textSub }]}>Mesaj silindi</Text>
-            ) : item.videoUri || item.type === 'video' ? (
-              <View style={styles.imageContainer}>
-                <VideoThumbnail
-                  videoUri={item.videoUri}
-                  style={styles.videoMessage}
-                  onPress={() => setFullscreenVideo({
-                    uri: item.videoUri,
-                    name: isMyMessage ? currentUserName : recipientName,
-                    imageUrl: isMyMessage ? currentUserProfileImageUrl : recipientProfileImageUrl,
-                  })}
+          <MessagePressable
+            onLongPress={() => {
+              if (selectionMode) {
+                toggleSelectMessage(item);
+                return;
+              }
+              handleLongPressMessage(item);
+            }}
+            onPress={() => {
+              if (selectionMode) {
+                toggleSelectMessage(item);
+                return;
+              }
+              if (!item.isDeleted && (item.videoUri || item.type === 'video')) {
+                setFullscreenVideo({
+                  uri: item.videoUri,
+                  name: isMyMessage ? currentUserName : recipientName,
+                  imageUrl: isMyMessage ? currentUserProfileImageUrl : recipientProfileImageUrl,
+                });
+              }
+            }}
+            style={[
+              styles.messageItemContainer,
+              isMyMessage ? styles.myMessageItemContainer : styles.otherMessageItemContainer,
+              isSelected && styles.messageItemSelected,
+            ]}
+          >
+            {selectionMode && (
+              <View style={[styles.selectionBadge, isMyMessage ? styles.selectionBadgeLeft : styles.selectionBadgeRight]}>
+                <Ionicons
+                  name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
+                  size={22}
+                  color={isSelected ? colors.primary : colors.textSub}
                 />
-                <View style={styles.videoTimeOverlay}>
-                  {item.updatedAt ? (
-                    <Text style={styles.imageTimeText}>Düzeltildi · {formatMessageTime(item.createdAt)}</Text>
-                  ) : (
-                    <Text style={styles.imageTimeText}>{formatMessageTime(item.createdAt)}</Text>
-                  )}
-                </View>
               </View>
-            ) : item.imageUri ? (
-              <View style={styles.imageContainer}>
-                <Image source={{ uri: item.imageUri }} style={styles.messageImage} />
-                <View style={styles.imageTimeOverlay}>
-                  {item.updatedAt ? (
-                    <Text style={styles.imageTimeText}>Düzeltildi · {formatMessageTime(item.createdAt)}</Text>
-                  ) : (
-                    <Text style={styles.imageTimeText}>{formatMessageTime(item.createdAt)}</Text>
-                  )}
-                </View>
-              </View>
-            ) : (
-              <>
-                <Text style={[styles.messageText, !isMyMessage && { color: colors.textMain }]}>{item.text}</Text>
-                <View style={styles.messageTimeRow}>
-                  {item.updatedAt ? (
-                    <Text style={[styles.messageTimeText, !isMyMessage && { color: colors.textSub }]}>Düzeltildi · {formatMessageTime(item.createdAt)}</Text>
-                  ) : (
-                    <Text style={[styles.messageTimeText, !isMyMessage && { color: colors.textSub }]}>{formatMessageTime(item.createdAt)}</Text>
-                  )}
-                </View>
-              </>
             )}
-          </View>
-        </MessagePressable>
+            <View style={[
+              styles.messageBubble,
+              isMyMessage ? styles.myMessageBubble : styles.otherMessageBubble,
+              !item.isDeleted && (item.imageUri || item.videoUri || item.type === 'video') && styles.imageBubble,
+              showPointer && !item.imageUri && !item.videoUri && !item.isDeleted && (isMyMessage ? styles.myMessageBubbleLast : styles.otherMessageBubbleLast),
+              isSelected && styles.messageBubbleSelected,
+            ]}>
+              {item.replyToMessageId && (
+                <View style={[styles.repliedMessageContainer, !isMyMessage && { borderLeftColor: colors.primary }]}>
+                  <Text style={[styles.repliedMessageSender, !isMyMessage && { color: colors.primary }]} numberOfLines={1}>
+                    {repliedToMessageSenderName === 'Siz' ? 'Yanıtınız' : `Yanıtlanıyor: ${repliedToMessageSenderName}`}
+                  </Text>
+                  <Text style={[styles.repliedMessageText, !isMyMessage && { color: colors.textSub }]} numberOfLines={2}>{replyPreview}</Text>
+                </View>
+              )}
+              {item.isDeleted ? (
+                <Text style={[styles.deletedMessageText, !isMyMessage && { color: colors.textSub }]}>Mesaj silindi</Text>
+              ) : item.videoUri || item.type === 'video' ? (
+                <View style={styles.imageContainer}>
+                  <VideoThumbnail
+                    videoUri={item.videoUri}
+                    style={styles.videoMessage}
+                    onPress={() => setFullscreenVideo({
+                      uri: item.videoUri,
+                      name: isMyMessage ? currentUserName : recipientName,
+                      imageUrl: isMyMessage ? currentUserProfileImageUrl : recipientProfileImageUrl,
+                    })}
+                  />
+                  <View style={styles.videoTimeOverlay}>
+                    {item.updatedAt ? (
+                      <Text style={styles.imageTimeText}>Düzeltildi · {formatMessageTime(item.createdAt)}</Text>
+                    ) : (
+                      <Text style={styles.imageTimeText}>{formatMessageTime(item.createdAt)}</Text>
+                    )}
+                  </View>
+                </View>
+              ) : item.imageUri ? (
+                <View style={styles.imageContainer}>
+                  <Image source={{ uri: item.imageUri }} style={styles.messageImage} />
+                  <View style={styles.imageTimeOverlay}>
+                    {item.updatedAt ? (
+                      <Text style={styles.imageTimeText}>Düzeltildi · {formatMessageTime(item.createdAt)}</Text>
+                    ) : (
+                      <Text style={styles.imageTimeText}>{formatMessageTime(item.createdAt)}</Text>
+                    )}
+                  </View>
+                </View>
+              ) : (
+                <>
+                  <Text style={[styles.messageText, !isMyMessage && { color: colors.textMain }]}>{item.text}</Text>
+                  <View style={styles.messageTimeRow}>
+                    {item.updatedAt ? (
+                      <Text style={[styles.messageTimeText, !isMyMessage && { color: colors.textSub }]}>Düzeltildi · {formatMessageTime(item.createdAt)}</Text>
+                    ) : (
+                      <Text style={[styles.messageTimeText, !isMyMessage && { color: colors.textSub }]}>{formatMessageTime(item.createdAt)}</Text>
+                    )}
+                  </View>
+                </>
+              )}
+            </View>
+          </MessagePressable>
         </Swipeable>
       </View>
     );
@@ -854,59 +830,40 @@ export default function SendMessage() {
           </>
         ) : (
           <>
-        <Pressable onPress={() => navigation.goBack()} hitSlop={12} style={styles.headerBackBtn}>
-          <Image
-            source={require('../../assets/images/back.png')}
-            style={[styles.backIcon, { tintColor: colors.iconTint }]}
-          />
-        </Pressable>
-        <Pressable style={styles.profileInfo} onPress={() => navigation.navigate('OtherProfilePage', { userId: recipientId })}>
-          {recipientProfileImageUrl ? (
-            <Image
-              source={{ uri: recipientProfileImageUrl }}
-              style={styles.profileImage}
-            />
-          ) : (
-            <View style={styles.profileImagePlaceholder}>
-              <MaterialCommunityIcons name="account" size={22} color={colors.textSub} />
-            </View>
-          )}
-          <View style={styles.headerTextBlock}>
-            <Text style={styles.userName} numberOfLines={1}>{recipientName}</Text>
-            {otherTyping ? (
-              <TypingIndicator color={colors.textSub} />
-            ) : (
-              getUserTitle() ? <Text style={styles.userTitle} numberOfLines={1}>{getUserTitle()}</Text> : null
-            )}
-          </View>
-        </Pressable>
-        <TouchableOpacity ref={headerMenuBtnRef} onPress={openHeaderMenu} hitSlop={12} style={styles.headerOptionsBtn}>
-          <MaterialCommunityIcons name="dots-horizontal" size={24} color={colors.textMain} />
-        </TouchableOpacity>
+            <Pressable onPress={() => navigation.goBack()} hitSlop={12} style={styles.headerBackBtn}>
+              <Image
+                source={require('../../assets/images/back.png')}
+                style={[styles.backIcon, { tintColor: colors.iconTint }]}
+              />
+            </Pressable>
+            <Pressable style={styles.profileInfo} onPress={() => navigation.navigate('OtherProfilePage', { userId: recipientId })}>
+              {recipientProfileImageUrl ? (
+                <Image
+                  source={{ uri: recipientProfileImageUrl }}
+                  style={styles.profileImage}
+                />
+              ) : (
+                <View style={styles.profileImagePlaceholder}>
+                  <MaterialCommunityIcons name="account" size={22} color={colors.textSub} />
+                </View>
+              )}
+              <View style={styles.headerTextBlock}>
+                <Text style={styles.userName} numberOfLines={1}>{recipientName}</Text>
+                {otherTyping ? (
+                  <TypingIndicator color={colors.textSub} />
+                ) : (
+                  getUserTitle() ? <Text style={styles.userTitle} numberOfLines={1}>{getUserTitle()}</Text> : null
+                )}
+              </View>
+            </Pressable>
+            <TouchableOpacity ref={headerMenuBtnRef} onPress={openHeaderMenu} hitSlop={12} style={styles.headerOptionsBtn}>
+              <MaterialCommunityIcons name="dots-horizontal" size={24} color={colors.textMain} />
+            </TouchableOpacity>
           </>
         )}
       </View>
 
       <View style={[styles.keyboardArea, { paddingBottom: keyboardHeight }]}>
-        {messages.length === 0 ? (
-          <View style={styles.emptyChatContainer}>
-            <Text style={styles.emptyChatTitle}>İlk sen yaz</Text>
-            <Text style={styles.emptyChatSubtitle}>
-              Sohbeti başlatmak için aşağıdakilerden birini seç veya mesajını yaz.
-            </Text>
-            <View style={styles.suggestionList}>
-              {starterSuggestions.map((s, i) => (
-                <Pressable
-                  key={i}
-                  style={styles.suggestionChip}
-                  onPress={() => handleSendMessage(s)}
-                >
-                  <Text style={styles.suggestionChipText}>{s}</Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-        ) : (
         <FlatList
           ref={flatListRef}
           data={messages}
@@ -916,68 +873,67 @@ export default function SendMessage() {
           inverted
           style={styles.messagesFlatList}
         />
-        )}
 
         <View style={styles.inputContainer}>
           <View style={styles.chatInputRow}>
-          <View style={[styles.chatInputWrapper, (replyingToMessage || editingMessage) && styles.chatInputWrapperHasReply]}>
-            {(replyingToMessage || editingMessage) && (
-              <View style={styles.replyingToContainer}>
-                <View style={{ flex: 1 }}>
-                  {replyingToMessage && (
-                    <>
-                      <Text style={styles.replyingToHeader}>
-                        Yanıtlanıyor: <Text style={{ fontWeight: 'bold' }}>{replyingToMessage.senderId === currentUserId ? 'Siz' : recipientName}</Text>
-                      </Text>
-                      <Text style={styles.replyingToText} numberOfLines={1}>{getMessagePreview(replyingToMessage)}</Text>
-                    </>
-                  )}
-                  {editingMessage && (
-                    <>
-                      <Text style={styles.replyingToHeader}>
-                        Düzenleniyor:
-                      </Text>
-                      <Text style={styles.replyingToText} numberOfLines={1}>{editingMessage.text}</Text>
-                    </>
-                  )}
+            <View style={[styles.chatInputWrapper, (replyingToMessage || editingMessage) && styles.chatInputWrapperHasReply]}>
+              {(replyingToMessage || editingMessage) && (
+                <View style={styles.replyingToContainer}>
+                  <View style={{ flex: 1 }}>
+                    {replyingToMessage && (
+                      <>
+                        <Text style={styles.replyingToHeader}>
+                          Yanıtlanıyor: <Text style={{ fontWeight: 'bold' }}>{replyingToMessage.senderId === currentUserId ? 'Siz' : recipientName}</Text>
+                        </Text>
+                        <Text style={styles.replyingToText} numberOfLines={1}>{getMessagePreview(replyingToMessage)}</Text>
+                      </>
+                    )}
+                    {editingMessage && (
+                      <>
+                        <Text style={styles.replyingToHeader}>
+                          Düzenleniyor:
+                        </Text>
+                        <Text style={styles.replyingToText} numberOfLines={1}>{editingMessage.text}</Text>
+                      </>
+                    )}
+                  </View>
+                  <Pressable onPress={replyingToMessage ? () => setReplyingToMessage(null) : handleCancelEdit} style={styles.replyingToCloseBtn} hitSlop={8}>
+                    <MaterialCommunityIcons name="close" size={16} color={colors.textMain} />
+                  </Pressable>
                 </View>
-                <Pressable onPress={replyingToMessage ? () => setReplyingToMessage(null) : handleCancelEdit} style={styles.replyingToCloseBtn} hitSlop={8}>
-                  <MaterialCommunityIcons name="close" size={16} color={colors.textMain} />
-                </Pressable>
-              </View>
-            )}
-            <TextInput
-              style={styles.textInput}
-              placeholder=""
-              placeholderTextColor={colors.textSub}
-              value={message}
-              onChangeText={(t) => {
-                setMessage(t);
-                if (t.trim()) sendTyping();
-              }}
-              multiline
-              maxHeight={100}
-              minHeight={40}
-              textAlignVertical="center"
-              maxLength={1000}
-            />
-          </View>
-          {message.trim() ? (
-            <Pressable onPress={handleSendMessage} style={styles.sendButton}>
-              <Image
-                source={require('../../assets/images/ArrowRight.png')}
-                style={styles.sendIcon}
-              />
-            </Pressable>
-          ) : (
-            <View style={[styles.sendButton, styles.sendButtonDisabled]}>
-              <Image
-                source={require('../../assets/images/ArrowRight.png')}
-                style={[styles.sendIcon, { opacity: 0.3 }]}
+              )}
+              <TextInput
+                style={styles.textInput}
+                placeholder=""
+                placeholderTextColor={colors.textSub}
+                value={message}
+                onChangeText={(t) => {
+                  setMessage(t);
+                  if (t.trim()) sendTyping();
+                }}
+                multiline
+                maxHeight={100}
+                minHeight={40}
+                textAlignVertical="center"
+                maxLength={1000}
               />
             </View>
-          )}
-        </View>
+            {message.trim() ? (
+              <Pressable onPress={handleSendMessage} style={styles.sendButton}>
+                <Image
+                  source={require('../../assets/images/ArrowRight.png')}
+                  style={styles.sendIcon}
+                />
+              </Pressable>
+            ) : (
+              <View style={[styles.sendButton, styles.sendButtonDisabled]}>
+                <Image
+                  source={require('../../assets/images/ArrowRight.png')}
+                  style={[styles.sendIcon, { opacity: 0.3 }]}
+                />
+              </View>
+            )}
+          </View>
         </View>
       </View>
 
@@ -997,25 +953,26 @@ export default function SendMessage() {
         </Pressable>
       </Modal>
 
-      <ActionSheet visible={selectionActionVisible} onClose={() => setSelectionActionVisible(false)}>
-        <View style={styles.selModalInner}>
-          <View style={styles.selModalCard}>
-            <View style={styles.selModalHandleBar} />
-            <Text style={styles.selModalHeader}>{selectedMessages.length} mesaj seçildi</Text>
-            <Pressable onPress={handleDeleteSelectedForMe} style={styles.selOptionRow}>
-              <MaterialCommunityIcons name="account-minus-outline" size={20} color={colors.textMain} style={{ marginRight: 8 }} />
-              <Text style={styles.selOptionText}>Kendinden Sil</Text>
+      <Modal transparent visible={selectionActionVisible} animationType="fade" onRequestClose={() => setSelectionActionVisible(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setSelectionActionVisible(false)}>
+          <View style={styles.modalView}>
+            <Text style={styles.selectionActionHeader}>
+              {selectedMessages.length} mesaj seçildi
+            </Text>
+            <Pressable onPress={handleDeleteSelectedForMe} style={styles.modalButton}>
+              <Text style={styles.modalButtonText}>Kendinden Sil</Text>
             </Pressable>
-            <Pressable onPress={handleDeleteSelectedForEveryone} style={[styles.selOptionRow, styles.selEndOptionRow, hasDeletedSelected && styles.modalButtonDisabled]} disabled={hasDeletedSelected}>
-              <MaterialCommunityIcons name="account-group-outline" size={20} color={hasDeletedSelected ? colors.textSub : colors.textMain} style={{ marginRight: 8 }} />
-              <Text style={[styles.selOptionText, styles.deleteButtonText, hasDeletedSelected && { opacity: 0.4 }]}>Herkesden Sil</Text>
+            <Pressable onPress={handleDeleteSelectedForEveryone} style={[styles.modalButton, hasDeletedSelected && styles.modalButtonDisabled]} disabled={hasDeletedSelected}>
+              <Text style={[styles.modalButtonText, styles.deleteButtonText, hasDeletedSelected && { opacity: 0.4 }]}>Herkesden Sil</Text>
             </Pressable>
           </View>
-          <TouchableOpacity style={styles.selCancelButton} activeOpacity={0.7} onPress={() => setSelectionActionVisible(false)}>
-            <Text style={styles.selCancelButtonText}>İptal</Text>
-          </TouchableOpacity>
-        </View>
-      </ActionSheet>
+          <View style={styles.cancelView}>
+            <Pressable onPress={() => setSelectionActionVisible(false)} style={[styles.CanceltButton, styles.cancelButton]}>
+              <Text style={styles.cancelButtonText}>İptal</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
 
       <Modal
         animationType="fade"
@@ -1051,40 +1008,49 @@ export default function SendMessage() {
         </View>
       </Modal>
 
-      <ActionSheet visible={modalVisible} onClose={() => { setModalVisible(false); setSelectedMessage(null); }}>
-        <View style={styles.selModalInner}>
-          <View style={styles.selModalCard}>
-            <View style={styles.selModalHandleBar} />
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => {
+          setModalVisible(false);
+          setSelectedMessage(null);
+        }}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setModalVisible(false)}>
+          <View style={styles.modalView}>
             {selectedMessage && selectedMessage.isDeleted ? (
-              <Pressable onPress={handleDeleteSingleForMe} style={[styles.selOptionRow, styles.selEndOptionRow]}>
-                <Text style={[styles.selOptionText, styles.deleteButtonText]}>Kendinden Sil</Text>
+              <Pressable onPress={handleDeleteSingleForMe} style={styles.modalButton}>
+                <Text style={[styles.modalButtonText, styles.deleteButtonText]}>Kendinden Sil</Text>
               </Pressable>
             ) : (
               <>
-                <Pressable onPress={handleReply} style={styles.selOptionRow}>
-                  <Text style={styles.selOptionText}>Yanıtla</Text>
+                <Pressable onPress={handleReply} style={styles.modalButton}>
+                  <Text style={styles.modalButtonText}>Yanıtla</Text>
                 </Pressable>
                 {selectedMessage && selectedMessage.senderId === currentUserId && (
                   <>
-                    <Pressable onPress={handleEdit} style={styles.selOptionRow}>
-                      <Text style={styles.selOptionText}>Mesajı Düzenle</Text>
+                    <Pressable onPress={handleEdit} style={styles.modalButton}>
+                      <Text style={styles.modalButtonText}>Mesajı Düzenle</Text>
                     </Pressable>
-                    <Pressable onPress={handleDeleteSingleForMe} style={styles.selOptionRow}>
-                      <Text style={[styles.selOptionText, styles.deleteButtonText]}>Kendinden Sil</Text>
+                    <Pressable onPress={handleDeleteSingleForMe} style={styles.modalButton}>
+                      <Text style={[styles.modalButtonText, styles.deleteButtonText]}>Kendinden Sil</Text>
                     </Pressable>
-                    <Pressable onPress={handleDeleteMessage} style={[styles.selOptionRow, styles.selEndOptionRow]}>
-                      <Text style={[styles.selOptionText, styles.deleteButtonText]}>Herkesden Sil</Text>
+                    <Pressable onPress={handleDeleteMessage} style={styles.modalButton}>
+                      <Text style={[styles.modalButtonText, styles.deleteButtonText]}>Herkesden Sil</Text>
                     </Pressable>
                   </>
                 )}
               </>
             )}
           </View>
-          <TouchableOpacity style={styles.selCancelButton} activeOpacity={0.7} onPress={() => { setModalVisible(false); setSelectedMessage(null); }}>
-            <Text style={styles.selCancelButtonText}>İptal</Text>
-          </TouchableOpacity>
-        </View>
-      </ActionSheet>
+          <View style={styles.cancelView}>
+            <Pressable onPress={() => setModalVisible(false)} style={[styles.CanceltButton, styles.cancelButton]}>
+              <Text style={styles.cancelButtonText}>İptal</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1309,43 +1275,6 @@ const getStyles = (colors) => StyleSheet.create({
   keyboardArea: {
     flex: 1,
   },
-  emptyChatContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingBottom: 40,
-  },  emptyChatTitle: {
-    color: colors.textMain,
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  emptyChatSubtitle: {
-    color: colors.textSub,
-    fontSize: 14,
-    textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 20,
-  },
-  suggestionList: {
-    width: '100%',
-    gap: 10,
-  },
-  suggestionChip: {
-    backgroundColor: colors.cardBackground,
-    borderWidth: 1,
-    borderColor: colors.primary,
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  suggestionChipText: {
-    color: colors.primary,
-    fontSize: 15,
-    fontWeight: '600',
-  },
   messagesFlatList: {
     flex: 1,
   },
@@ -1355,6 +1284,35 @@ const getStyles = (colors) => StyleSheet.create({
     backgroundColor: colors.background,
     marginTop: 2,
     marginBottom: 25,
+  },
+  cancelView: {
+    backgroundColor: colors.cardBackground,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderColor: colors.border,
+    borderWidth: 1,
+    width: '96%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -5 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 15,
+    alignSelf: 'center',
+    marginBottom: 20
+  },
+  cancelButton: {
+    flexDirection: 'row',
+    width: '100%',
+    paddingVertical: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  cancelButtonText: {
+    color: '#FF6B6B',
+    fontSize: 18,
+    fontWeight: '600',
   },
   chatInputRow: {
     flexDirection: 'row',
@@ -1412,82 +1370,49 @@ const getStyles = (colors) => StyleSheet.create({
     tintColor: '#FFF',
     resizeMode: 'contain',
   },
-  selModalInner: {
-    width: '95%',
-    alignSelf: 'center',
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
-  selModalCard: {
+  modalView: {
     backgroundColor: colors.cardBackground,
-    paddingVertical: 8,
-    borderRadius: 25,
+    paddingVertical: 5,
+    borderRadius: 20,
     borderColor: colors.border,
     borderWidth: 1,
-    width: '100%',
+    width: '96%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -5 },
     shadowOpacity: 0.3,
     shadowRadius: 10,
     elevation: 15,
     paddingBottom: 10,
-  },
-  selModalHandleBar: {
-    width: 40,
-    height: 5,
-    backgroundColor: colors.border,
-    borderRadius: 10,
     alignSelf: 'center',
-    marginTop: 8,
-    marginBottom: 4,
+    marginBottom: 10
   },
-  selModalHeader: {
+  modalButton: {
+    flexDirection: 'row',
+    width: '100%',
+    paddingVertical: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  modalButtonDisabled: {
+    opacity: 0.5,
+  },
+  modalButtonText: {
+    color: colors.textMain,
+    fontSize: 18,
+    textAlign: 'center',
+  },
+  selectionActionHeader: {
     color: colors.textSub,
     fontSize: 13,
     textAlign: 'center',
     paddingVertical: 12,
-  },
-  selOptionRow: {
-    flexDirection: 'row',
-    width: '100%',
-    paddingVertical: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  selEndOptionRow: {
-    flexDirection: 'row',
-    width: '100%',
-    paddingVertical: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderBottomWidth: 0,
-  },
-  selOptionText: {
-    color: colors.textMain,
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  selCancelButton: {
-    backgroundColor: colors.cardBackground,
-    paddingVertical: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 10,
-    marginBottom: Platform.OS === 'ios' ? 34 : 15,
-    borderRadius: 15,
-    marginHorizontal: 10,
-    borderColor: colors.border,
-    borderWidth: 1,
-    width: '95%',
-    alignSelf: 'center',
-  },
-  selCancelButtonText: {
-    color: '#FF4B4B',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  modalButtonDisabled: {
-    opacity: 0.5,
   },
   deleteButtonText: {
     color: '#FF3B30',

@@ -16,11 +16,10 @@ const AdminJobsList = () => {
   const [pendingJobs, setPendingJobs] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // History and Filtering State
   const [showHistory, setShowHistory] = useState(false);
   const [historyJobs, setHistoryJobs] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [timeFilter, setTimeFilter] = useState('all'); // 'all', 'week', 'month', 'year'
+  const [timeFilter, setTimeFilter] = useState('all');
   const [historyLoading, setHistoryLoading] = useState(false);
 
   useFocusEffect(
@@ -168,7 +167,6 @@ const AdminJobsList = () => {
         />
       )}
 
-      {/* History BottomSheet */}
       <BottomSheet
         visible={showHistory}
         onClose={() => setShowHistory(false)}
@@ -257,7 +255,6 @@ const styles = StyleSheet.create({
   arrow: { width: 16, height: 16, opacity: 0.3 },
   emptyText: { textAlign: 'center', marginTop: 50 },
 
-  // History Styles
   searchWrapper: {
     flexDirection: 'row',
     alignItems: 'center',

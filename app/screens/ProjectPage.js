@@ -105,7 +105,6 @@ export function ProjectPage() {
         }
     };
 
-    // ── Gönder ──────────────────────────────────────────────────────────────
     const handleGonder = async () => {
         if (!projectTitle.trim()) {
             Toast.show({ type: 'error', text1: 'Uyarı', text2: 'Lütfen bir proje başlığı giriniz.' });
@@ -152,7 +151,6 @@ export function ProjectPage() {
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             >
                 <View style={styles.content}>
-                    {/* Header */}
                     <View style={styles.header}>
                         <Pressable onPress={() => navigation.goBack()} hitSlop={15}>
                             <Image source={require('../../assets/images/back.png')} style={[styles.iconBack, { tintColor: colors.iconTint }]} />
@@ -176,7 +174,6 @@ export function ProjectPage() {
                         </Pressable>
                     </View>
 
-                    {/* Profil Satırı */}
                     <View style={styles.profileRow}>
                         <Image
                             source={
@@ -203,7 +200,6 @@ export function ProjectPage() {
                         </View>
                     </View>
 
-                    {/* Proje Başlığı */}
                     <View style={styles.inputContainer}>
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                             <Text style={styles.inputLabel}>Proje Başlığı</Text>
@@ -235,7 +231,6 @@ export function ProjectPage() {
                         />
                     </View>
 
-                    {/* GitHub */}
                     <View style={styles.inputContainer}>
                         <Text style={styles.inputLabel}>GitHub Bağlantısı</Text>
                         <View style={styles.linkRow}>
@@ -252,7 +247,6 @@ export function ProjectPage() {
                         </View>
                     </View>
 
-                    {/* GitHub Bilgilendirme */}
                     <View style={[styles.infoCard, { backgroundColor: isDark ? 'rgba(0, 102, 255, 0.15)' : 'rgba(0, 102, 255, 0.06)', borderColor: isDark ? 'rgba(0, 102, 255, 0.3)' : 'rgba(0, 102, 255, 0.15)' }]}>
                         <Ionicons name="information-circle-outline" size={20} color={colors.primary} style={{ marginRight: 10 }} />
                         <Text style={[styles.infoText, { color: colors.textSub }]}>
@@ -335,7 +329,6 @@ const getStyles = (colors) => StyleSheet.create({
         borderColor: colors.border,
     },
 
-    // Fotoğraf alanı
     photoHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
     photoCount: { color: colors.primary, fontSize: 12, fontWeight: '700' },
     photoScroll: { flexDirection: 'row' },

@@ -1,6 +1,5 @@
 import axios from 'axios';
 
-// SHA-1 Implementation
 function sha1(message) {
   const utf8 = [];
   for (let i = 0; i < message.length; i++) {
@@ -19,15 +18,13 @@ function sha1(message) {
   }
 
   const msgLen = utf8.length;
-  // Pad
   utf8.push(0x80);
   while ((utf8.length % 64) !== 56) {
     utf8.push(0);
   }
   
-  // Append length in bits as a 64-bit big-endian integer
   const bits = msgLen * 8;
-  utf8.push(0, 0, 0, 0); // High 32 bits
+  utf8.push(0, 0, 0, 0);
   utf8.push(
     (bits >>> 24) & 0xff,
     (bits >>> 16) & 0xff,
@@ -104,17 +101,10 @@ function sha1(message) {
   return hex;
 }
 
-// Credentials
 const CLOUD_NAME = process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME || 'dmxgxyehn';
 const API_KEY = process.env.EXPO_PUBLIC_CLOUDINARY_API_KEY || '863475419813878';
 const API_SECRET = process.env.EXPO_PUBLIC_CLOUDINARY_API_SECRET || 'SLJLPsfSEg2dCYTcIqEXGRq_rII';
 
-/**
- * Uploads a file (image/video) to Cloudinary using signed uploads.
- * @param {string} fileUri - Local URI of the file
- * @param {string} mediaType - Type of media ('image' or 'video')
- * @returns {Promise<string>} - HTTPS secure URL of the uploaded asset
- */
 export async function uploadToCloudinary(fileUri, mediaType = 'image') {
   if (!fileUri) return null;
 
@@ -123,11 +113,9 @@ export async function uploadToCloudinary(fileUri, mediaType = 'image') {
 
   const timestamp = Math.floor(Date.now() / 1000).toString();
 
-  // Create signature
   const stringToSign = `timestamp=${timestamp}${API_SECRET}`;
   const signature = sha1(stringToSign);
 
-  // File structure for FormData in React Native
   let fileType = 'image/jpeg';
   if (resourceType === 'video') {
     fileType = 'video/mp4';
@@ -166,15 +154,9 @@ export async function uploadToCloudinary(fileUri, mediaType = 'image') {
     throw new Error(error.response?.data?.error?.message || error.message);
   }
 }
-/**
- * Extracts the Cloudinary public_id from a secure_url.
- * Example: https://res.cloudinary.com/demo/image/upload/v123/folder/my_photo.jpg
- *          → "folder/my_photo"
- */
 export function extractPublicId(cloudinaryUrl) {
   if (!cloudinaryUrl) return null;
   try {
-    // Match everything after /upload/v<version>/ or /upload/
     const match = cloudinaryUrl.match(/\/upload\/(?:v\d+\/)?(.+?)(?:\.[^.]+)?$/);
     return match ? match[1] : null;
   } catch {
@@ -182,12 +164,6 @@ export function extractPublicId(cloudinaryUrl) {
   }
 }
 
-/**
- * Deletes an asset from Cloudinary using the signed Destroy API.
- * @param {string} cloudinaryUrl - The secure_url returned by Cloudinary on upload
- * @param {string} mediaType - 'image' or 'video'
- * @returns {Promise<boolean>} - true if deleted successfully
- */
 export async function deleteFromCloudinary(cloudinaryUrl, mediaType = 'image') {
   const publicId = extractPublicId(cloudinaryUrl);
   if (!publicId) {
@@ -198,7 +174,6 @@ export async function deleteFromCloudinary(cloudinaryUrl, mediaType = 'image') {
   const resourceType = mediaType === 'video' ? 'video' : 'image';
   const timestamp = Math.floor(Date.now() / 1000).toString();
 
-  // Signed string: alphabetical order of params + secret
   const stringToSign = `public_id=${publicId}&timestamp=${timestamp}${API_SECRET}`;
   const signature = sha1(stringToSign);
 

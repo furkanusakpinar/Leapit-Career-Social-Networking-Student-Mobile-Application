@@ -216,7 +216,6 @@ const JobsDetail = () => {
                 <Text style={styles.detailText} numberOfLines={2}>Yetenekler: {item.jobSummary}</Text>
               </View>
 
-              {/* Button Group */}
               <View style={styles.buttonGroup}>
                 <Pressable style={[styles.btn, styles.btnPrimary]} onPress={() => setModalVisible(true)}>
                   <Text style={styles.btnTextWhite}>Başvur</Text>
@@ -235,7 +234,6 @@ const JobsDetail = () => {
                 </Pressable>
               </View>
 
-              {/* Hiring Team */}
               <Text style={styles.sectionTitle}>İşe alım takımı</Text>
               <View style={styles.teamCard}>
                 <Image

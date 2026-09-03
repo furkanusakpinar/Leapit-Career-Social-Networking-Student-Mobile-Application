@@ -181,7 +181,7 @@ const HomePage = () => {
 
   const handleToggleSave = async (post) => {
     await handleAction(post.id, 'savedBy', post.saved);
-    setOptionsPost(null); // Menüyü kapat
+    setOptionsPost(null);
   };
 
   const handleDeleteAllTestUsers = () => {
@@ -220,14 +220,10 @@ const HomePage = () => {
       return;
     }
 
-    // Save işlemi için özel mantık
     if (field === 'savedBy') {
         try {
-            // Kategoriyi gönderinin türüne göre belirle (varsayılan: 'Postlar')
-            // 'Posts' koleksiyonundan gelen verinin yapısına göre kategoriyi belirliyoruz
             const category = 'Postlar';
 
-            // Yeni yapı: Users/{userId}/saves/{category}/items/{postId}
             const saveRef = doc(db, 'Users', userId, 'saves', category, 'items', postId);
 
             if (isActive) {
@@ -319,14 +315,11 @@ const HomePage = () => {
       const postsArr = await Promise.all(snapshot.docs.map(async docSnap => {
         const data = docSnap.data();
 
-        // Görünürlük Filtresi
         const isAuthor = data.userId === userId;
         const visibility = data.visibility || 'everyone';
 
-        // only_me postlar home'da HİÇ gösterilmez (kendi post'u olsa bile)
         if (visibility === 'only_me') return null;
 
-        // friends postlar sadece takip edilenlere gösterilir
         if (visibility === 'friends' && !isAuthor && !followingIds.has(data.userId)) return null;
 
         let profileImageUrl = null, userName = 'Bilinmeyen Kullanıcı', detailsArr = [];
@@ -498,7 +491,7 @@ const getStyles = (colors) => StyleSheet.create({
     paddingTop: 15,
     paddingBottom: 10,
   },
-  cardProfil: { width: 44, height: 44, marginRight: 12, borderRadius: 22, backgroundColor: colors.border, borderWidth: 1, borderColor: colors.border },
+  cardProfil: { width: 44, height: 44, marginRight: 12, borderRadius: 14, backgroundColor: colors.border, borderWidth: 1, borderColor: colors.border },
   headerTextContainer: { flex: 1, justifyContent: 'center' },
   cardName: { color: colors.textMain, fontSize: 15, fontWeight: '700' },
   followerCountText: { color: colors.textSub, fontSize: 12, marginTop: 2 },

@@ -53,7 +53,6 @@ const BottomNavBar = ({ userId }) => {
     }, [route.name])
   );
 
-  // Real-time unread notification listener
   useEffect(() => {
     if (!activeUserId) return;
     if (unsubRef.current) unsubRef.current();
@@ -70,7 +69,6 @@ const BottomNavBar = ({ userId }) => {
     return () => unsubRef.current?.();
   }, [activeUserId]);
 
-  // Real-time unread messages listener
   useEffect(() => {
     if (!activeUserId) return;
     if (unsubMsgRef.current) unsubMsgRef.current();
@@ -125,7 +123,6 @@ const BottomNavBar = ({ userId }) => {
                     { tintColor: selectedIndex === index ? colors.primary : colors.textSub }
                   ]}
                 />
-                {/* Red badge on notifications icon */}
                 {index === 4 && unreadCount > 0 && (
                   <View style={styles.badge}>
                     {unreadCount < 100 && (
@@ -135,7 +132,6 @@ const BottomNavBar = ({ userId }) => {
                     )}
                   </View>
                 )}
-                {/* Red badge on messages icon */}
                 {index === 1 && unreadMessages > 0 && (
                   <View style={styles.badge}>
                     {unreadMessages < 100 && (
@@ -232,8 +228,6 @@ const getStyles = (colors) => StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
-    borderWidth: 2,
-    borderColor: colors.background,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.35,

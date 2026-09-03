@@ -90,7 +90,6 @@ const JobApproval = () => {
         status: approve ? 'active' : 'rejected'
       });
 
-      // ── Uygulama içi bildirim gönder ──────────────────────────────────
       const targetUserId = job.userId || job.advertiserId;
       if (targetUserId) {
         try {
@@ -108,7 +107,6 @@ const JobApproval = () => {
           console.warn('Bildirim gönderilemedi:', notifErr);
         }
       }
-      // ─────────────────────────────────────────────────────────────────
 
       const userParams = {
         user_name: job.advertiserName,
@@ -172,7 +170,6 @@ const JobApproval = () => {
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
-        {/* Status Badge */}
         {job && (
           <View style={[
             styles.statusBadge,

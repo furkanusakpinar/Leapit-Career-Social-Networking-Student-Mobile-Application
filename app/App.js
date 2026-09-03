@@ -13,7 +13,6 @@ import store from './redux/store';
 import { setTheme } from './redux/themeSlice';
 import { lightTheme, darkTheme } from './theme/colors';
 
-// Disable system font scaling globally for consistent UI sizing
 if (Text.defaultProps) {
   Text.defaultProps.allowFontScaling = false;
 } else {

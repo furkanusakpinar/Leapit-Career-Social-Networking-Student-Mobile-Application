@@ -22,7 +22,6 @@ const Loading = () => {
         const storedCredentials = await AsyncStorage.getItem('userCredentials');
 
         if (storedUserId && storedCredentials) {
-          // Firestore'da kullanıcı gerçekten var mı kontrol et
           try {
             const userDocRef = doc(db, 'Users', storedUserId);
             const userDocSnap = await getDoc(userDocRef);
@@ -36,7 +35,6 @@ const Loading = () => {
                 const TWENTY_MINUTES = 20 * 60 * 1000;
 
                 if (elapsedMs <= TWENTY_MINUTES) {
-                  // Profil tamamlanmamış ve 20 dk geçmemiş — hangi adımda kaldığını belirle
                   dispatch(setUserId(storedUserId));
                   dispatch(setUserInfo(userData));
 
@@ -54,7 +52,6 @@ const Loading = () => {
                   dispatch(setProfileStep(step));
                   dispatch(setAuth(false));
                 } else {
-                  // 20 dk geçmiş — hesabı sil ve temizle
                   await deleteDoc(userDocRef);
                   await AsyncStorage.multiRemove([
                     'userId',
@@ -69,18 +66,15 @@ const Loading = () => {
                   dispatch(setAuth(false));
                 }
               } else {
-                // Profil tamam, normal giriş
                 dispatch(setUserId(storedUserId));
                 dispatch(setAuth(true));
               }
             } else {
-              // Kullanıcı silinmiş, kayıtlı bilgileri temizle
               console.log('Stored user no longer exists in Firestore. Clearing credentials.');
               await AsyncStorage.multiRemove(['userId', 'userCredentials', 'isBiometricEnabled', 'rememberMe']);
               dispatch(setAuth(false));
             }
           } catch (firestoreError) {
-            // Firestore hatası olursa güvenli tarafta kal, login ekranına gönder
             console.error('Firestore check error during startup:', firestoreError);
             dispatch(setAuth(false));
           }

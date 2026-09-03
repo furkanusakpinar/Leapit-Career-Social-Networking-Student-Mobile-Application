@@ -158,7 +158,6 @@ const buildReadmeHtml = (content, isDark, colors) => {
 </html>`;
 };
 
-// ─── Project Detail Bottom Sheet ──────────────────────────────────────────────
 function ProjectSheet({ project, visible, onClose, colors, isDark }) {
   const [readmeContent, setReadmeContent] = useState((project?.readme || project?.content) || '');
   const [loading, setLoading] = useState(false);
@@ -193,7 +192,6 @@ function ProjectSheet({ project, visible, onClose, colors, isDark }) {
       subtitle={formatTimeAgo(project.createdAt)}
       contentStyle={{ height: SHEET_HEIGHT }}
     >
-        {/* GitHub Link */}
         {!!project.githubUrl && (
           <TouchableOpacity
             style={[sheetStyles.githubBtn, { backgroundColor: isDark ? '#1E1E2D' : '#F0F0F0', borderColor: colors.border }]}
@@ -207,7 +205,6 @@ function ProjectSheet({ project, visible, onClose, colors, isDark }) {
           </TouchableOpacity>
         )}
 
-        {/* README WebView / Loader */}
         {loading && !readmeContent ? (
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
             <ActivityIndicator size="large" color={colors.primary} />
@@ -230,7 +227,6 @@ function ProjectSheet({ project, visible, onClose, colors, isDark }) {
           />
         )}
 
-        {/* Code Snippet */}
         {!!project.codeSnippet && (
           <View style={[sheetStyles.codeBlock, { backgroundColor: isDark ? '#1E1E2D' : '#F0F0F0', borderColor: colors.border }]}>
             <Text style={[sheetStyles.codeLabel, { color: colors.textSub }]}>KOD PARÇASI</Text>
@@ -245,7 +241,6 @@ function ProjectSheet({ project, visible, onClose, colors, isDark }) {
   );
 }
 
-// ─── Profile Edit Bottom Sheet ────────────────────────────────────────────────
 function ProfileEditSheet({ visible, onClose, colors, isDark, userData, userId, onSaveSuccess }) {
   const [bio, setBio] = useState('');
   const [userLocation, setUserLocation] = useState('');
@@ -359,9 +354,7 @@ function ProfileEditSheet({ visible, onClose, colors, isDark, userData, userId, 
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Profili Düzenle" contentStyle={{ height: SHEET_HEIGHT }}>
         <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 15, paddingBottom: 40 }}>
-            {/* Banner + Avatar Overlay (ProfilePage tarzı) */}
             <View style={{ width: '100%', marginBottom: 48, marginTop: 5 }}>
-              {/* Banner */}
               <Pressable
                 onPress={handleChooseBackPhoto}
                 style={{ width: '100%', height: 110, borderRadius: 14, overflow: 'hidden', backgroundColor: colors.border }}
@@ -373,13 +366,11 @@ function ProfileEditSheet({ visible, onClose, colors, isDark, userData, userId, 
                     <Ionicons name="image-outline" size={26} color={colors.textSub} />
                   </View>
                 )}
-                {/* Banner kamera ikonu */}
                 <View style={{ position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.5)', padding: 5, borderRadius: 15 }}>
                   <Ionicons name="camera" size={14} color="white" />
                 </View>
               </Pressable>
 
-              {/* Avatar — bannerın altına bindirme */}
               <View style={{ position: 'absolute', bottom: -44, left: 16 }}>
                 <Pressable onPress={handleChoosePhoto} style={{ position: 'relative' }}>
                   {profileImageUri ? (
@@ -392,7 +383,6 @@ function ProfileEditSheet({ visible, onClose, colors, isDark, userData, userId, 
                       <MaterialCommunityIcons name="account" size={48} color={colors.textSub} />
                     </View>
                   )}
-                  {/* Avatar kamera badge */}
                   <View style={{ position: 'absolute', bottom: 2, right: 2, backgroundColor: colors.primary, width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: colors.cardBackground }}>
                     <Ionicons name="camera" size={11} color="white" />
                   </View>
@@ -400,7 +390,6 @@ function ProfileEditSheet({ visible, onClose, colors, isDark, userData, userId, 
               </View>
             </View>
 
-            {/* Hakkımda */}
             <Text style={{ color: colors.textSub, fontSize: 12, fontWeight: '600', marginBottom: 4, marginTop: 10 }}>Hakkımda</Text>
             <TextInput
               placeholder="Kendinizden bahsedin..."
@@ -423,7 +412,6 @@ function ProfileEditSheet({ visible, onClose, colors, isDark, userData, userId, 
             />
             <Text style={{ color: colors.textSub, fontSize: 10, textAlign: 'right', marginTop: 2, marginBottom: 10 }}>{bio.length}/500</Text>
 
-            {/* Konum */}
             <Text style={{ color: colors.textSub, fontSize: 12, fontWeight: '600', marginBottom: 4 }}>Konum *</Text>
             <TextInput
               placeholder="Şehir, Ülke"
@@ -444,7 +432,6 @@ function ProfileEditSheet({ visible, onClose, colors, isDark, userData, userId, 
             />
             <Text style={{ color: colors.textSub, fontSize: 10, textAlign: 'right', marginTop: 2, marginBottom: 10 }}>{userLocation.length}/100</Text>
 
-            {/* CV Bağlantısı */}
             <Text style={{ color: colors.textSub, fontSize: 12, fontWeight: '600', marginBottom: 4 }}>CV Bağlantısı (URL)</Text>
             <TextInput
               placeholder="CV / Portfolyo linkinizi girin..."
@@ -465,7 +452,6 @@ function ProfileEditSheet({ visible, onClose, colors, isDark, userData, userId, 
             />
             <Text style={{ color: colors.textSub, fontSize: 10, textAlign: 'right', marginTop: 2, marginBottom: 15 }}>{cvUrl.length}/200</Text>
 
-            {/* GitHub Linki */}
             <Text style={{ color: colors.textSub, fontSize: 12, fontWeight: '600', marginBottom: 4 }}>GitHub Linki (İsteğe Bağlı)</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? '#13151C' : '#F0F0F0', borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 15, marginBottom: 12, height: 50 }}>
               <Ionicons name="logo-github" size={18} color={colors.textSub} style={{ marginRight: 8 }} />
@@ -481,7 +467,6 @@ function ProfileEditSheet({ visible, onClose, colors, isDark, userData, userId, 
               />
             </View>
 
-            {/* Instagram Linki */}
             <Text style={{ color: colors.textSub, fontSize: 12, fontWeight: '600', marginBottom: 4 }}>Instagram Linki (İsteğe Bağlı)</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isDark ? '#13151C' : '#F0F0F0', borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 15, marginBottom: 15, height: 50 }}>
               <Ionicons name="logo-instagram" size={18} color={colors.textSub} style={{ marginRight: 8 }} />
@@ -497,7 +482,6 @@ function ProfileEditSheet({ visible, onClose, colors, isDark, userData, userId, 
               />
             </View>
 
-            {/* Kaydet Butonu */}
             <TouchableOpacity
               style={{
                 backgroundColor: colors.primary,
@@ -520,7 +504,6 @@ function ProfileEditSheet({ visible, onClose, colors, isDark, userData, userId, 
   );
 }
 
-// ─── PostCard — birebir HomePage kart yapısı ──────────────────────────────────
 const truncateString = (str, maxLength) => {
   if (!str) return '';
   return str.length <= maxLength ? str : str.substring(0, maxLength - 3) + '...';
@@ -609,7 +592,6 @@ function SavedPostCard({ item, isExpanded, hasMedia, displayContent, colors, onT
   const s = getPostCardStyles(colors);
   return (
     <View style={s.card}>
-      {/* Header — birebir HomePage */}
       <View style={s.cardHeader}>
         <Pressable onPress={() => navigation?.navigate('OtherProfilePage', { userId: item.userId })}>
           <Image
@@ -631,7 +613,6 @@ function SavedPostCard({ item, isExpanded, hasMedia, displayContent, colors, onT
         </Pressable>
       </View>
 
-      {/* Content */}
       <View style={s.contentSection}>
         <Text style={s.cardDescInline}>
           {displayContent}
@@ -643,7 +624,6 @@ function SavedPostCard({ item, isExpanded, hasMedia, displayContent, colors, onT
         </Text>
       </View>
 
-      {/* Media */}
       {hasMedia && (
         <View style={s.mediaWrapper}>
           {item.mediaType === 'image' ? (
@@ -654,7 +634,6 @@ function SavedPostCard({ item, isExpanded, hasMedia, displayContent, colors, onT
         </View>
       )}
 
-      {/* PostActions — birebir HomePage PostActions */}
       <PostCardActions
         item={item}
         colors={colors}
@@ -691,7 +670,7 @@ const getPostCardStyles = (colors) => StyleSheet.create({
   cardTime: { color: colors.textSub, fontSize: 11, marginTop: 2 },
   optionsContainer: { padding: 5, paddingRight: 0 },
   optionsText: { color: colors.textSub, fontSize: 20, fontWeight: 'bold', marginTop: -15 },
-  contentSection: { paddingHorizontal: 15, paddingBottom: 12 },
+  contentSection: { paddingHorizontal: 15, paddingBottom: 12  },
   cardDescInline: { color: colors.textMain, fontSize: 14, lineHeight: 21 },
   moreText: { color: colors.textSub, fontSize: 14, fontWeight: '600' },
   mediaWrapper: { width: '100%', aspectRatio: 1.2, backgroundColor: colors.background },
@@ -720,7 +699,6 @@ const getPostCardStyles = (colors) => StyleSheet.create({
   actionLabel: { color: colors.textSub, fontSize: 13, marginLeft: 6, fontWeight: '600' },
 });
 
-// ─── Main ProfilePage ──────────────────────────────────────────────────────────
 export default function ProfilePage() {
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -739,9 +717,10 @@ export default function ProfilePage() {
   const [expandedPosts, setExpandedPosts] = useState({});
   const [optionsItem, setOptionsItem] = useState(null);
   const [menuAnchorY, setMenuAnchorY] = useState(0);
-  const [savedCategory, setSavedCategory] = useState(null); // 'Postlar', 'İş İlanları', 'Projeler'
+  const [savedCategory, setSavedCategory] = useState(null);
   const [editSheetVisible, setEditSheetVisible] = useState(false);
   const [contactMenuVisible, setContactMenuVisible] = useState(false);
+  const [showMoreInfo, setShowMoreInfo] = useState(false);
   const scrollY = useSharedValue(0);
 
   const updateBlur = useCallback((y) => {
@@ -1121,7 +1100,6 @@ export default function ProfilePage() {
           </Pressable>
         </View>
 
-        {/* Banner + Avatar Section */}
         <Animated.View style={[styles.bannerContainer, bannerAnimatedStyle]}>
           {userData.backProfileImageUrl ? (
             <Image
@@ -1162,11 +1140,13 @@ export default function ProfilePage() {
                 ? (userData.branch ? `Öğrenci • ${userData.branch}` : 'Öğrenci')
                 : (userData.profession || 'Meslek yok')}
             </Text>
-            {!!userData.userLocation && (
+            {(!!userData.city || !!userData.country) && (
               <View style={[styles.locationRow, { justifyContent: 'space-between' }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
                   <MaterialCommunityIcons name="map-marker-outline" size={13} color={colors.textSub} style={{ marginRight: 3 }} />
-                  <Text style={styles.infoSubText} numberOfLines={1}>{userData.userLocation}</Text>
+                  <Text style={styles.infoSubText} numberOfLines={1}>
+                    {[userData.city, userData.country].filter(Boolean).join(', ')}
+                  </Text>
                 </View>
                 {(!!userData.githubLink || !!userData.instagramLink) && (
                   <TouchableOpacity
@@ -1213,7 +1193,6 @@ export default function ProfilePage() {
           </View>
         </View>
 
-        {/* İletişim Bilgileri Popup */}
         {contactMenuVisible && (!!userData.githubLink || !!userData.instagramLink) && (
           <Pressable
             style={{ ...StyleSheet.absoluteFillObject, zIndex: 99 }}
@@ -1268,6 +1247,73 @@ export default function ProfilePage() {
           <Text style={styles.sectionLabel}>Hakkımda</Text>
           <Text style={styles.bioText}>{userData.bio || 'Henüz bir açıklama eklenmedi.'}</Text>
         </View>
+
+        <TouchableOpacity
+          onPress={() => setShowMoreInfo(!showMoreInfo)}
+          style={[styles.paddingArea, { paddingTop: 0, paddingBottom: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' }]}
+          activeOpacity={0.7}
+        >
+          <Text style={{ color: colors.primary, fontSize: 13, fontWeight: '600' }}>
+            {showMoreInfo ? 'Daha Az Bilgi' : 'Daha Fazla Bilgi'}
+          </Text>
+          <Ionicons
+            name={showMoreInfo ? 'chevron-up' : 'chevron-down'}
+            size={16}
+            color={colors.primary}
+            style={{ marginLeft: 4 }}
+          />
+        </TouchableOpacity>
+
+        {showMoreInfo && (
+          <View style={[styles.paddingArea, { paddingTop: 12, paddingBottom: 6 }]}>
+            {!!userData.skills && userData.skills.length > 0 && userData.showSkills !== false && (
+              <View style={{ marginBottom: 12 }}>
+                <Text style={styles.sectionLabel}>Beceriler</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {userData.skills.map((skill, index) => (
+                    <View key={index} style={styles.moreInfoCard}>
+                      <Text style={styles.moreInfoText} numberOfLines={1}>{skill}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {!!userData.languages && userData.languages.length > 0 && userData.showLanguages !== false && (
+              <View style={{ marginBottom: 12 }}>
+                <Text style={styles.sectionLabel}>Diller</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {userData.languages.map((lang, index) => (
+                    <View key={index} style={styles.moreInfoCard}>
+                      <Text style={styles.moreInfoText} numberOfLines={1}>{lang}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {!!userData.interests && userData.interests.length > 0 && userData.showInterests !== false && (
+              <View style={{ marginBottom: 4 }}>
+                <Text style={styles.sectionLabel}>İlgi Alanları</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {userData.interests.map((interest, index) => (
+                    <View key={index} style={styles.moreInfoCard}>
+                      <Text style={styles.moreInfoText} numberOfLines={1}>{interest}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {(!userData.skills || userData.skills.length === 0) &&
+             (!userData.languages || userData.languages.length === 0) &&
+             (!userData.interests || userData.interests.length === 0) && (
+              <Text style={{ color: colors.textSub, fontSize: 13, textAlign: 'center' }}>
+                Henüz eklenmemiş.
+              </Text>
+            )}
+          </View>
+        )}
 
         <View style={styles.tabBar}>
           {['Blog', 'Projeler', 'Postlar', 'Kaydedilenler'].map(tab => (
@@ -1406,7 +1452,6 @@ export default function ProfilePage() {
                   );
                 }
 
-                // Blog & Projeler cards
                 return (
                   <View key={item.id} style={styles.card}>
                     <View style={styles.cardHeaderRow}>
@@ -1440,7 +1485,6 @@ export default function ProfilePage() {
         </View>
       </Animated.ScrollView>
 
-      {/* Project Detail Sheet */}
       <ProjectSheet
         project={selectedProject}
         visible={sheetVisible}
@@ -1477,7 +1521,6 @@ export default function ProfilePage() {
   );
 }
 
-// ─── Sheet Styles ──────────────────────────────────────────────────────────────
 const sheetStyles = StyleSheet.create({
   githubBtn: {
     flexDirection: 'row',
@@ -1514,7 +1557,6 @@ const sheetStyles = StyleSheet.create({
   },
 });
 
-// ─── Page Styles ───────────────────────────────────────────────────────────────
 const getStyles = (colors) => StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
@@ -1587,6 +1629,19 @@ const getStyles = (colors) => StyleSheet.create({
   activeTabText: { color: colors.textMain },
 
   card: { backgroundColor: colors.cardBackground, padding: 15, borderRadius: 20, marginBottom: 15, borderWidth: 1, borderColor: colors.border },
+  moreInfoCard: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+    marginBottom: 8,
+    width: '31%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  moreInfoText: { color: colors.textMain, fontSize: 13, fontWeight: '600', textAlign: 'center' },
   cardTitle: { color: colors.textMain, fontSize: 16, fontWeight: 'bold', flex: 1 },
   cardHeaderRow: {
     flexDirection: 'row',

@@ -49,7 +49,6 @@ const CreateProfileScreen = ({ route }) => {
         let isMounted = true;
         const prepareData = async () => {
             try {
-                // Son 20 dk içindeki ilerlemeyi geri yükle
                 const saved = await AsyncStorage.getItem('create_profile_draft');
                 if (saved) {
                     const { data, timestamp } = JSON.parse(saved);
@@ -97,7 +96,6 @@ const CreateProfileScreen = ({ route }) => {
         return () => { isMounted = false; };
     }, []);
 
-    // Form değişikliklerini otomatik kaydet
     useEffect(() => {
         const saveDraft = async () => {
             try {
@@ -131,7 +129,6 @@ const CreateProfileScreen = ({ route }) => {
             return showToast('Lütfen yıldızlı alanları doldurun.');
         }
         setIsLoading(true);
-        // Doğrudan Firebase'e yazmıyoruz, yerel taslakta (AsyncStorage) kalıyor.
         try {
             await AsyncStorage.setItem('step1_completed', JSON.stringify({ completed: true, timestamp: Date.now() }));
         } catch (_) {}
