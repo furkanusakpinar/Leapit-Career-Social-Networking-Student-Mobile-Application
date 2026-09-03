@@ -23,6 +23,7 @@ export default function PostOptionsMenu({
   onDelete,
   onReport,
   onSave,
+  onEdit,
   onClose,
   anchorY = 0,
 }) {
@@ -63,7 +64,7 @@ export default function PostOptionsMenu({
     }
   }, [visible]);
 
-  const menuHeight = isOwnPost ? 120 : 120;
+  const menuHeight = (isOwnPost ? 120 : 120) + (onEdit ? 48 : 0);
   const isCloseToBottom = anchorY + menuHeight > SCREEN_HEIGHT - 100;
   const topPos = isCloseToBottom ? anchorY - menuHeight - 15 : anchorY + 15;
 
@@ -75,20 +76,29 @@ export default function PostOptionsMenu({
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <Pressable style={styles.backdrop} onPress={onClose} />
-
-      <Animated.View
-        style={[
-          styles.menuBox,
-          {
-            backgroundColor: colors.cardBackground,
-            borderColor: colors.border,
-            top: topPos,
-            opacity: fadeAnim,
-            transform: [{ scale: scaleAnim }],
-          },
-        ]}
-      >
+      <Pressable style={styles.modalRoot} onPress={onClose}>
+        <Animated.View
+          style={[
+            styles.menuBox,
+            {
+              backgroundColor: colors.cardBackground,
+              borderColor: colors.border,
+              top: topPos,
+              opacity: fadeAnim,
+              transform: [{ scale: scaleAnim }],
+            },
+          ]}
+        >
+        {!!onEdit && (
+          <TouchableOpacity
+            style={[styles.menuItem, { borderBottomColor: colors.border, borderBottomWidth: 0.5 }]}
+            onPress={onEdit}
+            activeOpacity={0.7}
+          >
+            <MaterialCommunityIcons name="pencil-outline" size={20} color={colors.textMain} style={styles.menuIcon} />
+            <Text style={[styles.menuItemText, { color: colors.textMain }]}>Düzenle</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
           style={[styles.menuItem, { borderBottomColor: colors.border, borderBottomWidth: 0.5 }]}
           onPress={onSave}
@@ -120,19 +130,21 @@ export default function PostOptionsMenu({
           </TouchableOpacity>
         )}
       </Animated.View>
+    </Pressable>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
+  modalRoot: {
+    flex: 1,
     backgroundColor: 'rgba(0,0,0,0.15)',
   },
   menuBox: {
     position: 'absolute',
     right: 20,
     width: 220,
+    zIndex: 1,
     borderRadius: 14,
     borderWidth: 1,
     shadowColor: '#000',

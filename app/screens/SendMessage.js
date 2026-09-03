@@ -688,7 +688,9 @@ export default function SendMessage() {
                 toggleSelectMessage(item);
                 return;
               }
-              handleLongPressMessage(item);
+              if (item.senderId === currentUserId) {
+                handleLongPressMessage(item);
+              }
             }}
             onPress={() => {
               if (selectionMode) {
@@ -1025,7 +1027,7 @@ export default function SendMessage() {
               </Pressable>
             ) : (
               <>
-                <Pressable onPress={handleReply} style={styles.modalButton}>
+                <Pressable onPress={handleReply} style={styles.modalButton2}>
                   <Text style={styles.modalButtonText}>Yanıtla</Text>
                 </Pressable>
                 {selectedMessage && selectedMessage.senderId === currentUserId && (
@@ -1036,7 +1038,7 @@ export default function SendMessage() {
                     <Pressable onPress={handleDeleteSingleForMe} style={styles.modalButton}>
                       <Text style={[styles.modalButtonText, styles.deleteButtonText]}>Kendinden Sil</Text>
                     </Pressable>
-                    <Pressable onPress={handleDeleteMessage} style={styles.modalButton}>
+                    <Pressable onPress={handleDeleteMessage} style={styles.modalButton2}>
                       <Text style={[styles.modalButtonText, styles.deleteButtonText]}>Herkesden Sil</Text>
                     </Pressable>
                   </>
@@ -1399,6 +1401,13 @@ const getStyles = (colors) => StyleSheet.create({
     justifyContent: 'center',
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
+  },
+  modalButton2: {
+    flexDirection: 'row',
+    width: '100%',
+    paddingVertical: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modalButtonDisabled: {
     opacity: 0.5,

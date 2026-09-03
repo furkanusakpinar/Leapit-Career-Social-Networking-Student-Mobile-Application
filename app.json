@@ -14,16 +14,14 @@
         "foregroundImage": "./assets/images/LeapitLogo1024.png",
         "backgroundColor": "#161622"
       },
-      "edgeToEdgeEnabled": false,
       "package": "com.leapiet.jobs"
     },
     "web": {
       "bundler": "metro",
-      "output": "static",
+      "output": "single",
       "favicon": "./assets/images/LeapitLogo.png"
     },
     "plugins": [
-      "expo-router",
       [
         "expo-splash-screen",
         {
@@ -44,13 +42,15 @@
         {
           "photosPermission": "Leapit galeriden fotoğraf seçip mesaj olarak göndermek için medya kütüphanenize erişmek istiyor."
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker",
+      "expo-font",
+      "expo-image",
+      "expo-localization",
+      "expo-status-bar",
+      "expo-video"
     ],
-    "experiments": {
-      "typedRoutes": true
-    },
     "extra": {
-      "router": {},
       "eas": {
         "projectId": "0a24d955-1dc6-4108-baf5-dd48ad24f115"
       }

@@ -10,6 +10,7 @@ import {
   Dimensions,
   Image,
   Linking,
+  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -24,7 +25,9 @@ import Animated, {
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
+  withTiming,
 } from 'react-native-reanimated';
+import { PanGestureHandler } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { db } from '../../firebaseConfig';
@@ -241,9 +244,199 @@ function ProjectSheet({ project, visible, onClose, colors, isDark }) {
   );
 }
 
+function BlogSheet({ blog, visible, onClose, colors, isDark, editable = false, onSave = null, saving = false }) {
+  const [mounted, setMounted] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editContent, setEditContent] = useState('');
+  const translateY = useSharedValue(SCREEN_HEIGHT);
+  const backdropOpacity = useSharedValue(0);
+
+  useEffect(() => {
+    if (visible && blog) {
+      setMounted(true);
+      setEditTitle(blog.title || '');
+      setEditContent(blog.content || '');
+      translateY.value = withTiming(0, { duration: 250 });
+      backdropOpacity.value = withTiming(1, { duration: 280 });
+    } else if (mounted) {
+      translateY.value = withTiming(SCREEN_HEIGHT, { duration: 220 });
+      backdropOpacity.value = withTiming(0, { duration: 220 }, (finished) => {
+        if (finished) runOnJS(setMounted)(false);
+      });
+    }
+  }, [visible]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
+  const backStyle = useAnimatedStyle(() => ({
+    opacity: backdropOpacity.value,
+  }));
+
+  const onGesture = (e) => {
+    if (e.nativeEvent.translationY > 0) {
+      translateY.value = e.nativeEvent.translationY;
+    }
+  };
+  const onGestureEnd = () => {
+    if (translateY.value > 150) {
+      runOnJS(onClose)();
+    } else {
+      translateY.value = withTiming(0, { duration: 220 });
+    }
+  };
+
+  if (!visible && !mounted) return null;
+
+  return (
+    <Modal transparent visible={mounted} animationType="none" onRequestClose={onClose} statusBarTranslucent>
+      <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)' }, backStyle]}>
+          <Pressable style={{ flex: 1 }} onPress={onClose} />
+        </Animated.View>
+        <PanGestureHandler onGestureEvent={onGesture} onEnded={onGestureEnd}>
+          <Animated.View style={[{ width: '100%', alignItems: 'center', marginBottom: 20 }, animatedStyle]}>
+          <View style={{
+            width: '95%',             height: SCREEN_HEIGHT * 0.38,
+            backgroundColor: colors.cardBackground,
+            borderRadius: 25,
+            borderWidth: 1,
+            borderColor: colors.border,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: -5 },
+            shadowOpacity: 0.3,
+            shadowRadius: 10,
+            elevation: 15,
+            overflow: 'hidden',
+          }}>
+            <View style={{ alignSelf: 'center', paddingVertical: 8 }}>
+              <View style={{ width: 40, height: 5, borderRadius: 10, backgroundColor: colors.border }} />
+            </View>
+            {!editable && (
+              <View style={{ alignItems: 'center', paddingBottom: 10 }}>
+                <Text style={{ color: colors.textMain, fontSize: 17, fontWeight: '700' }} numberOfLines={1}>
+                  {blog?.title || 'Blog Yazısı'}
+                </Text>
+                <Text style={{ color: colors.textSub, fontSize: 13, marginTop: 2 }} numberOfLines={1}>
+                  {formatTimeAgo(blog?.createdAt)}
+                </Text>
+              </View>
+            )}
+            {editable ? (
+              <ScrollView
+                style={{ flex: 1 }}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20, paddingTop: 20 }}
+                keyboardShouldPersistTaps="handled"
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                  <Text style={{ color: colors.textSub, fontSize: 12, fontWeight: '700' }}>BAŞLIK</Text>
+                  <Text style={{ color: '#E63946', fontSize: 14, fontWeight: 'bold', marginLeft: 3 }}>*</Text>
+                </View>
+                <TextInput
+                  value={editTitle}
+                  onChangeText={setEditTitle}
+                  placeholder="Başlık ekle..."
+                  placeholderTextColor={colors.textSub}
+                  maxLength={100}
+                  style={{
+                    backgroundColor: colors.background,
+                    color: colors.textMain,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    borderRadius: 12,
+                    paddingHorizontal: 14,
+                    paddingVertical: 12,
+                    fontSize: 15,
+                    fontWeight: '600',
+                    marginBottom: 16,
+                  }}
+                />
+                <Text style={{ color: colors.textSub, fontSize: 12, fontWeight: '700', marginBottom: 6 }}>İÇERİK</Text>
+                <TextInput
+                  value={editContent}
+                  onChangeText={setEditContent}
+                  placeholder="Konu ekle..."
+                  placeholderTextColor={colors.textSub}
+                  multiline
+                  maxLength={5000}
+                  style={{
+                    backgroundColor: colors.background,
+                    color: colors.textMain,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    borderRadius: 12,
+                    paddingHorizontal: 14,
+                    paddingVertical: 12,
+                    fontSize: 15,
+                    minHeight: 110,
+                    textAlignVertical: 'top',
+                  }}
+                />
+              </ScrollView>
+            ) : (
+              <ScrollView
+                style={{ flex: 1 }}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
+              >
+                {!!(blog?.mediaUri && typeof blog.mediaUri === 'string' && blog.mediaUri.length > 5) && (
+                  <View style={{ width: '100%', aspectRatio: 1.6, borderRadius: 14, overflow: 'hidden', marginBottom: 16, backgroundColor: colors.border }}>
+                    {blog.mediaType === 'image' ? (
+                      <Image source={{ uri: blog.mediaUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                    ) : (
+                      <VideoPlayer videoUri={blog.mediaUri} style={{ width: '100%', height: '100%' }} />
+                    )}
+                  </View>
+                )}
+                <Text style={{ color: colors.textMain, fontSize: 16, lineHeight: 26 }}>
+                  {blog?.content || 'İçerik bulunamadı.'}
+                </Text>
+              </ScrollView>
+            )}
+          </View>
+          {editable && (
+            <>
+              <TouchableOpacity
+                onPress={() => onSave && onSave(editTitle, editContent)}
+                activeOpacity={0.7}
+                disabled={saving}
+                style={{
+                  backgroundColor: colors.primary,
+                  paddingVertical: 18,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: 15,
+                  width: '95%',
+                  alignSelf: 'center',
+                  marginTop: 10,
+                }}
+              >
+                {saving ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>Kaydet</Text>
+                )}
+              </TouchableOpacity>
+            </>
+          )}
+          </Animated.View>
+        </PanGestureHandler>
+      </View>
+    </Modal>
+  );
+}
+
 function ProfileEditSheet({ visible, onClose, colors, isDark, userData, userId, onSaveSuccess }) {
+  const SUGGESTED_CITIES = [
+    'İstanbul', 'Ankara', 'İzmir', 'Bursa', 'Antalya',
+    'Adana', 'Gaziantep', 'Konya', 'Eskişehir', 'Trabzon'
+  ];
+
   const [bio, setBio] = useState('');
-  const [userLocation, setUserLocation] = useState('');
+  const [city, setCity] = useState('');
+  const [country, setCountry] = useState('');
+  const [citySuggestions, setCitySuggestions] = useState([]);
   const [cvUrl, setCvUrl] = useState('');
   const [githubLink, setGithubLink] = useState('');
   const [instagramLink, setInstagramLink] = useState('');
@@ -254,7 +447,15 @@ function ProfileEditSheet({ visible, onClose, colors, isDark, userData, userId, 
   useEffect(() => {
     if (visible && userData) {
       setBio(userData.bio || '');
-      setUserLocation(userData.userLocation || '');
+      let initialCity = userData.city || '';
+      let initialCountry = userData.country || '';
+      if (!initialCity && !initialCountry && userData.userLocation) {
+        const parts = userData.userLocation.split(',').map(s => s.trim()).filter(Boolean);
+        initialCity = parts[0] || '';
+        initialCountry = parts[1] || '';
+      }
+      setCity(initialCity);
+      setCountry(initialCountry);
       setCvUrl(userData.cvUrl || '');
       setGithubLink(userData.githubLink || '');
       setInstagramLink(userData.instagramLink || '');
@@ -306,7 +507,7 @@ function ProfileEditSheet({ visible, onClose, colors, isDark, userData, userId, 
       Alert.alert('Hata', 'Lütfen "Hakkımda" bölümünü doldurun.');
       return;
     }
-    if (!userLocation.trim()) {
+    if (!city.trim()) {
       Alert.alert('Hata', 'Lütfen konum bilginizi doldurun.');
       return;
     }
@@ -329,7 +530,9 @@ function ProfileEditSheet({ visible, onClose, colors, isDark, userData, userId, 
 
       const updateData = {
         bio: bio.trim(),
-        userLocation: userLocation.trim(),
+        city: city.trim(),
+        country: country.trim(),
+        userLocation: [city, country].map(s => s.trim()).filter(Boolean).join(', '),
         cvUrl: cvUrl.trim(),
         githubLink: githubLink.trim(),
         instagramLink: instagramLink.trim(),
@@ -349,7 +552,7 @@ function ProfileEditSheet({ visible, onClose, colors, isDark, userData, userId, 
     }
   };
 
-  const canSaveProfile = bio.trim() !== '' && userLocation.trim() !== '' && !isLoading;
+  const canSaveProfile = bio.trim() !== '' && city.trim() !== '' && !isLoading;
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Profili Düzenle" contentStyle={{ height: SHEET_HEIGHT }}>
@@ -413,24 +616,68 @@ function ProfileEditSheet({ visible, onClose, colors, isDark, userData, userId, 
             <Text style={{ color: colors.textSub, fontSize: 10, textAlign: 'right', marginTop: 2, marginBottom: 10 }}>{bio.length}/500</Text>
 
             <Text style={{ color: colors.textSub, fontSize: 12, fontWeight: '600', marginBottom: 4 }}>Konum *</Text>
-            <TextInput
-              placeholder="Şehir, Ülke"
-              placeholderTextColor={colors.textSub}
-              style={{
-                backgroundColor: isDark ? '#13151C' : '#F0F0F0',
-                borderWidth: 1,
-                borderColor: colors.border,
-                borderRadius: 12,
-                paddingHorizontal: 15,
-                color: colors.textMain,
-                fontSize: 16,
-                height: 50,
-              }}
-              value={userLocation}
-              onChangeText={setUserLocation}
-              maxLength={100}
-            />
-            <Text style={{ color: colors.textSub, fontSize: 10, textAlign: 'right', marginTop: 2, marginBottom: 10 }}>{userLocation.length}/100</Text>
+            <View style={{ flexDirection: 'row', gap: 10, marginBottom: 15 }}>
+              <View style={{ flex: 1 }}>
+                <TextInput
+                  placeholder="Şehir"
+                  placeholderTextColor={colors.textSub}
+                  style={{
+                    backgroundColor: isDark ? '#13151C' : '#F0F0F0',
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    borderRadius: 12,
+                    paddingHorizontal: 12,
+                    color: colors.textMain,
+                    fontSize: 15,
+                    height: 46,
+                  }}
+                  value={city}
+                  onChangeText={(text) => {
+                    setCity(text);
+                    if (text.length > 0) {
+                      setCitySuggestions(
+                        SUGGESTED_CITIES.filter(c => c.toLowerCase().includes(text.toLowerCase())).slice(0, 6)
+                      );
+                    } else {
+                      setCitySuggestions([]);
+                    }
+                  }}
+                  maxLength={40}
+                />
+                {citySuggestions.length > 0 && (
+                  <View style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, backgroundColor: colors.cardBackground, borderRadius: 12, borderWidth: 1, borderColor: colors.border, zIndex: 1000, elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, overflow: 'hidden' }}>
+                    {citySuggestions.map((c, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={{ padding: 13, borderBottomWidth: 0.5, borderBottomColor: colors.border }}
+                        onPress={() => { setCity(c); setCitySuggestions([]); }}
+                      >
+                        <Text style={{ color: colors.textMain, fontSize: 14 }}>{c}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </View>
+              <View style={{ flex: 1 }}>
+                <TextInput
+                  placeholder="Ülke"
+                  placeholderTextColor={colors.textSub}
+                  style={{
+                    backgroundColor: isDark ? '#13151C' : '#F0F0F0',
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    borderRadius: 12,
+                    paddingHorizontal: 12,
+                    color: colors.textMain,
+                    fontSize: 15,
+                    height: 46,
+                  }}
+                  value={country}
+                  onChangeText={setCountry}
+                  maxLength={40}
+                />
+              </View>
+            </View>
 
             <Text style={{ color: colors.textSub, fontSize: 12, fontWeight: '600', marginBottom: 4 }}>CV Bağlantısı (URL)</Text>
             <TextInput
@@ -606,23 +853,33 @@ function SavedPostCard({ item, isExpanded, hasMedia, displayContent, colors, onT
         <View style={s.headerTextContainer}>
           <Text style={s.cardName}>{item.userName}</Text>
           {item.details?.length > 0 && <Text style={s.followerCountText}>{truncateString(item.details, 50)}</Text>}
-          <Text style={s.cardTime}>{moment(item.createdAt?.seconds * 1000).fromNow()} • 🌎</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+            <Text style={s.cardTime}>{moment(item.createdAt?.seconds * 1000).fromNow()}</Text>
+            {item.visibility === 'friends' ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 5 }}>
+                <Text style={s.cardTime}> • </Text>
+                <Ionicons name="people" size={12} color={colors.textSub} />
+              </View>
+            ) : null}
+          </View>
         </View>
         <Pressable style={s.optionsContainer} onPress={(e) => onOptionsPress?.(item, e.nativeEvent.pageY)}>
           <Text style={s.optionsText}>···</Text>
         </Pressable>
       </View>
 
-      <View style={s.contentSection}>
-        <Text style={s.cardDescInline}>
-          {displayContent}
-          {item.content?.length > 100 && (
-            <Text onPress={() => onToggleExpand(item.id)} style={s.moreText}>
-              {isExpanded ? ' Daha Az' : ' ...daha fazla'}
-            </Text>
-          )}
-        </Text>
-      </View>
+      {!!(item.content?.trim()) && (
+        <View style={s.contentSection}>
+          <Text style={s.cardDescInline}>
+            {displayContent}
+            {item.content?.length > 100 && (
+              <Text onPress={() => onToggleExpand(item.id)} style={s.moreText}>
+                {isExpanded ? ' Daha Az' : ' ...daha fazla'}
+              </Text>
+            )}
+          </Text>
+        </View>
+      )}
 
       {hasMedia && (
         <View style={s.mediaWrapper}>
@@ -711,6 +968,10 @@ export default function ProfilePage() {
   const [schoolLogoUri, setSchoolLogoUri] = useState(null);
   const [selectedProject, setSelectedProject] = useState(null);
   const [sheetVisible, setSheetVisible] = useState(false);
+  const [selectedBlog, setSelectedBlog] = useState(null);
+  const [blogSheetVisible, setBlogSheetVisible] = useState(false);
+  const [blogEditMode, setBlogEditMode] = useState(false);
+  const [savingBlog, setSavingBlog] = useState(false);
   const [overscrollBlur, setOverscrollBlur] = useState(0);
   const [commentModalVisible, setCommentModalVisible] = useState(false);
   const [activePostId, setActivePostId] = useState(null);
@@ -1079,6 +1340,48 @@ export default function ProfilePage() {
   const closeProjectSheet = () => {
     setSheetVisible(false);
     setTimeout(() => setSelectedProject(null), 350);
+  };
+
+  const openBlogSheet = (blog, editable = false) => {
+    setSelectedBlog(blog);
+    setBlogEditMode(editable);
+    setBlogSheetVisible(true);
+  };
+
+  const closeBlogSheet = () => {
+    setBlogSheetVisible(false);
+    setTimeout(() => setSelectedBlog(null), 350);
+  };
+
+  const handleEditBlog = () => {
+    const item = optionsItem;
+    setOptionsItem(null);
+    if (!item || item._tab !== 'Blog') return;
+    openBlogSheet(item, true);
+  };
+
+  const handleSaveBlog = async (newTitle, newContent) => {
+    const blog = selectedBlog;
+    if (!blog || !blog.id) return;
+    if (!newTitle?.trim() || !newContent?.trim()) {
+      Alert.alert('Uyarı', 'Başlık ve içerik boş olamaz.');
+      return;
+    }
+    setSavingBlog(true);
+    try {
+      await updateDoc(doc(db, 'Users', blog.userId || userId, 'blog', blog.id), {
+        title: newTitle.trim(),
+        content: newContent.trim(),
+      });
+      setSavingBlog(false);
+      closeBlogSheet();
+      Toast.show({ type: 'success', text1: 'Başarılı', text2: 'Blog güncellendi.' });
+      fetchTabData();
+    } catch (e) {
+      setSavingBlog(false);
+      console.error('Blog güncelleme hatası:', e);
+      Alert.alert('Hata', 'Blog güncellenirken bir hata oluştu.');
+    }
   };
 
   if (loading) return <View style={styles.centered}><ActivityIndicator color={colors.primary} /></View>;
@@ -1473,7 +1776,9 @@ export default function ProfilePage() {
                         </TouchableOpacity>
                       )}
                       {selectedTab === 'Blog' && (
-                        <Text style={styles.moreBtn}>Devamını Oku →</Text>
+                        <TouchableOpacity onPress={() => openBlogSheet(item)} activeOpacity={0.7}>
+                          <Text style={styles.moreBtn}>Devamını Oku →</Text>
+                        </TouchableOpacity>
                       )}
                     </View>
                   </View>
@@ -1492,6 +1797,16 @@ export default function ProfilePage() {
         colors={colors}
         isDark={isDark}
       />
+      <BlogSheet
+        blog={selectedBlog}
+        visible={blogSheetVisible}
+        onClose={closeBlogSheet}
+        colors={colors}
+        isDark={isDark}
+        editable={blogEditMode}
+        onSave={handleSaveBlog}
+        saving={savingBlog}
+      />
       <CommentModal
         visible={commentModalVisible}
         onClose={() => { setCommentModalVisible(false); setActivePostId(null); }}
@@ -1505,6 +1820,7 @@ export default function ProfilePage() {
         onDelete={handleDeleteItem}
         onReport={handleReportItem}
         onSave={() => handleToggleSave(optionsItem)}
+        onEdit={optionsItem?._tab === 'Blog' ? handleEditBlog : null}
         onClose={() => setOptionsItem(null)}
         anchorY={menuAnchorY}
       />

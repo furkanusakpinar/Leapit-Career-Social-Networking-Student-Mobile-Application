@@ -1,6 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
-import { Video } from 'expo-av';
+import { useEvent, useEventListener } from 'expo';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSelector } from 'react-redux';
@@ -8,32 +9,72 @@ import { lightTheme, darkTheme } from '../theme/colors';
 
 const CONTROLS_HIDE_MS = 3200;
 
-const formatMillis = (millis) => {
-  if (millis === undefined || isNaN(millis)) return '00:00';
-  const totalSeconds = Math.floor(millis / 1000);
+const formatTime = (seconds) => {
+  if (seconds === undefined || isNaN(seconds)) return '00:00';
+  const totalSeconds = Math.floor(seconds);
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
+  const secs = totalSeconds % 60;
   const mm = minutes < 10 ? '0' + minutes : String(minutes);
-  const ss = seconds < 10 ? '0' + seconds : String(seconds);
-  return hours > 0
-    ? `${hours}:${mm}:${ss}`
-    : `${mm}:${ss}`;
+  const ss = secs < 10 ? '0' + secs : String(secs);
+  return hours > 0 ? `${hours}:${mm}:${ss}` : `${mm}:${ss}`;
 };
 
 const VideoPlayer = ({ videoUri, style, videoStyle, isFocused = false, onPress, resizeMode = 'cover' }) => {
-  const videoPlayerRef = useRef(null);
-  const [playbackStatus, setPlaybackStatus] = useState({});
   const [isLoading, setIsLoading] = useState(true);
-  const [isBuffering, setIsBuffering] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isFinished, setIsFinished] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
   const [showControls, setShowControls] = useState(false);
   const controlsOpacity = useRef(new Animated.Value(1)).current;
   const controlsTimeout = useRef(null);
+  const isPlayingRef = useRef(false);
+
+  const player = useVideoPlayer(videoUri ? { uri: videoUri } : null, (p) => {
+    p.loop = false;
+    p.muted = false;
+  });
 
   const themeMode = useSelector(state => state.theme?.mode || 'dark');
   const colors = themeMode === 'light' ? lightTheme : darkTheme;
   const styles = getStyles(colors);
+
+  useEvent(player, 'timeUpdate', { currentTime: 0, bufferedPosition: 0 });
+
+  useEventListener(player, 'timeUpdate', ({ currentTime: t }) => {
+    setCurrentTime(t);
+  });
+
+  useEventListener(player, 'playingChange', ({ isPlaying: playing }) => {
+    isPlayingRef.current = playing;
+    setIsPlaying(playing);
+  });
+
+  useEventListener(player, 'playToEnd', () => {
+    setIsFinished(true);
+    setShowControls(true);
+    animateControls(true);
+    hideControls();
+  });
+
+  useEventListener(player, 'statusChange', (status) => {
+    if (status === 'loading') {
+      setIsLoading(true);
+    } else if (status === 'readyToPlay') {
+      setIsLoading(false);
+    } else if (status === 'error') {
+      console.error('Video yükleme hatası');
+      setIsLoading(false);
+    }
+  });
+
+  useEvent(player, 'sourceLoad', {});
+
+  useEventListener(player, 'sourceLoad', ({ duration: d }) => {
+    setDuration(d || 0);
+  });
 
   const animateControls = useCallback((visible) => {
     Animated.timing(controlsOpacity, {
@@ -57,7 +98,7 @@ const VideoPlayer = ({ videoUri, style, videoStyle, isFocused = false, onPress, 
   }, [animateControls]);
 
   const toggleControls = useCallback(() => {
-    if (!isLoading && playbackStatus.isLoaded) {
+    if (!isLoading) {
       setShowControls(prev => {
         const next = !prev;
         animateControls(next);
@@ -65,46 +106,34 @@ const VideoPlayer = ({ videoUri, style, videoStyle, isFocused = false, onPress, 
       });
       hideControls();
     }
-  }, [animateControls, hideControls, isLoading, playbackStatus.isLoaded]);
+  }, [animateControls, hideControls, isLoading]);
 
-  const handlePlaybackStatusUpdate = useCallback((status) => {
-    setPlaybackStatus(status);
-    if (status.isLoaded) {
-      setIsLoading(false);
-      setIsBuffering(!!status.isBuffering);
-      if (!status.isPlaying && !status.didJustFinish && !showControls) {
-        showControlsAnimated();
-      }
-    } else if (!status.isLoaded) {
-      setIsLoading(true);
-    }
-  }, [showControls, showControlsAnimated]);
-
-  const togglePlayPause = useCallback(async () => {
-    if (!videoPlayerRef.current || !playbackStatus.isLoaded) return;
-    if (playbackStatus.didJustFinish) {
-      await videoPlayerRef.current.setPositionAsync(0);
-      await videoPlayerRef.current.playAsync();
-    } else if (playbackStatus.isPlaying) {
-      await videoPlayerRef.current.pauseAsync();
+  const togglePlayPause = useCallback(() => {
+    if (!player || isLoading) return;
+    if (isFinished) {
+      player.currentTime = 0;
+      player.play();
+      setIsFinished(false);
+    } else if (isPlayingRef.current) {
+      player.pause();
       showControlsAnimated();
     } else {
-      await videoPlayerRef.current.playAsync();
+      player.play();
     }
     hideControls();
-  }, [hideControls, playbackStatus, showControlsAnimated]);
+  }, [isLoading, isFinished, player, hideControls, showControlsAnimated]);
 
-  const toggleMute = useCallback(async () => {
-    if (!videoPlayerRef.current) return;
+  const toggleMute = useCallback(() => {
+    if (!player) return;
     const next = !isMuted;
-    await videoPlayerRef.current.setIsMutedAsync(next);
+    player.muted = next;
     setIsMuted(next);
-  }, [isMuted]);
+  }, [isMuted, player]);
 
-  const seekTo = useCallback(async (positionMillis) => {
-    if (!videoPlayerRef.current) return;
-    await videoPlayerRef.current.setPositionAsync(positionMillis);
-  }, []);
+  const seekTo = useCallback((seconds) => {
+    if (!player) return;
+    player.currentTime = seconds;
+  }, [player]);
 
   useEffect(() => {
     if (controlsTimeout.current) clearTimeout(controlsTimeout.current);
@@ -114,44 +143,24 @@ const VideoPlayer = ({ videoUri, style, videoStyle, isFocused = false, onPress, 
   }, []);
 
   useEffect(() => {
-    if (videoPlayerRef.current) {
-      if (isFocused) {
-        videoPlayerRef.current.playAsync();
-      } else {
-        videoPlayerRef.current.pauseAsync();
-      }
+    if (!player) return;
+    if (isFocused) {
+      player.play();
+    } else {
+      player.pause();
     }
-  }, [isFocused]);
-
-  const isFinished = playbackStatus.didJustFinish || (
-    playbackStatus.isLoaded &&
-    playbackStatus.positionMillis > 0 &&
-    playbackStatus.positionMillis === playbackStatus.durationMillis
-  );
+  }, [isFocused, player]);
 
   return (
     <Pressable
       onPress={onPress || toggleControls}
       style={[styles.videoPlayerContainer, style]}
     >
-      <Video
-        ref={videoPlayerRef}
-        source={videoUri ? { uri: videoUri } : null}
-        rate={1.0}
-        volume={1.0}
-        isMuted={isMuted}
-        resizeMode={resizeMode}
-        shouldPlay={false}
-        isLooping={false}
-        useNativeControls={false}
+      <VideoView
+        player={player}
         style={[styles.videoElement, videoStyle]}
-        onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
-        onLoadStart={() => setIsLoading(true)}
-        onLoad={() => setIsLoading(false)}
-        onError={(error) => {
-          console.error('Video yükleme hatası:', error);
-          setIsLoading(false);
-        }}
+        contentFit={resizeMode}
+        nativeControls={false}
       />
 
       {isLoading && (
@@ -161,13 +170,7 @@ const VideoPlayer = ({ videoUri, style, videoStyle, isFocused = false, onPress, 
         </View>
       )}
 
-      {isBuffering && !isLoading && (
-        <View pointerEvents="none" style={styles.bufferingOverlay}>
-          <ActivityIndicator size="large" color="#ffffff" />
-        </View>
-      )}
-
-      {!isLoading && playbackStatus.isLoaded && !playbackStatus.isPlaying && !showControls && (
+      {!isLoading && !isPlaying && !showControls && (
         <Pressable onPress={togglePlayPause} style={styles.playIconOverlay}>
           <View style={styles.centerPlayButton}>
             <MaterialIcons name={isFinished ? 'replay' : 'play-arrow'} size={40} color="#fff" />
@@ -175,30 +178,30 @@ const VideoPlayer = ({ videoUri, style, videoStyle, isFocused = false, onPress, 
         </Pressable>
       )}
 
-      {!isLoading && playbackStatus.isLoaded && showControls && (
+      {!isLoading && showControls && (
         <Animated.View style={[styles.controlsOverlay, { opacity: controlsOpacity }]} pointerEvents="box-none">
           <View style={styles.controlsRow}>
             <Pressable onPress={togglePlayPause} style={styles.controlButton} hitSlop={8}>
               <MaterialIcons
-                name={isFinished ? 'replay' : playbackStatus.isPlaying ? 'pause' : 'play-arrow'}
+                name={isFinished ? 'replay' : isPlaying ? 'pause' : 'play-arrow'}
                 size={30}
                 color="#fff"
               />
             </Pressable>
 
-            <Text style={styles.timeText}>{formatMillis(playbackStatus.positionMillis)}</Text>
+            <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
 
             <Slider
               style={styles.progressBar}
               minimumValue={0}
-              maximumValue={playbackStatus.durationMillis || 1}
-              value={playbackStatus.positionMillis || 0}
-              onValueChange={(value) => setPlaybackStatus(prev => ({ ...prev, positionMillis: value }))}
+              maximumValue={duration || 1}
+              value={currentTime || 0}
+              onValueChange={(value) => setCurrentTime(value)}
               onSlidingStart={() => {
                 if (controlsTimeout.current) clearTimeout(controlsTimeout.current);
               }}
-              onSlidingComplete={async (value) => {
-                await seekTo(value);
+              onSlidingComplete={(value) => {
+                seekTo(value);
                 hideControls();
               }}
               minimumTrackTintColor="#ffffff"
@@ -207,7 +210,7 @@ const VideoPlayer = ({ videoUri, style, videoStyle, isFocused = false, onPress, 
               thumbTouchSize={{ width: 32, height: 32 }}
             />
 
-            <Text style={styles.timeText}>{formatMillis(playbackStatus.durationMillis)}</Text>
+            <Text style={styles.timeText}>{formatTime(duration)}</Text>
 
             <Pressable onPress={toggleMute} style={styles.controlButton} hitSlop={8}>
               <MaterialIcons
@@ -251,17 +254,6 @@ const getStyles = (colors) => StyleSheet.create({
     color: '#fff',
     marginTop: 10,
     fontSize: 14,
-  },
-  bufferingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.25)',
-    zIndex: 2,
   },
   playIconOverlay: {
     position: 'absolute',

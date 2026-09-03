@@ -1,17 +1,21 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { Video } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 const VideoThumbnail = ({ videoUri, style, onPress }) => {
+  const player = useVideoPlayer(videoUri, (player) => {
+    player.pause();
+    player.loop = false;
+    player.muted = true;
+  });
+
   return (
     <Pressable onPress={onPress} style={[styles.container, style]}>
-      <Video
-        source={{ uri: videoUri }}
+      <VideoView
+        player={player}
         style={styles.video}
-        resizeMode="cover"
-        shouldPlay={false}
-        isLooping={false}
-        useNativeControls={false}
+        contentFit="cover"
+        nativeControls={false}
       />
       <View style={styles.playButton}>
         <MaterialIcons name="play-arrow" size={34} color="#fff" />

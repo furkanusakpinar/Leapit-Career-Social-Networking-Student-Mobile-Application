@@ -13,6 +13,8 @@ import {
   Linking,
   ScrollView,
   Animated as RNAnimated,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector } from 'react-redux';
@@ -48,7 +50,9 @@ import Animated, {
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
+  withTiming,
 } from 'react-native-reanimated';
+import { PanGestureHandler } from 'react-native-gesture-handler';
 import { WebView } from 'react-native-webview';
 import { BlurView } from 'expo-blur';
 import VideoPlayer from '../components/VideoPlayer';
@@ -368,6 +372,189 @@ function ProjectSheet({ project, visible, onClose, colors, isDark }) {
   );
 }
 
+function BlogSheet({ blog, visible, onClose, colors, isDark, editable = false, onSave = null, saving = false }) {
+  const [mounted, setMounted] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editContent, setEditContent] = useState('');
+  const translateY = useSharedValue(SCREEN_HEIGHT);
+  const backdropOpacity = useSharedValue(0);
+
+  useEffect(() => {
+    if (visible && blog) {
+      setMounted(true);
+      setEditTitle(blog.title || '');
+      setEditContent(blog.content || '');
+      translateY.value = withTiming(0, { duration: 250 });
+      backdropOpacity.value = withTiming(1, { duration: 280 });
+    } else if (mounted) {
+      translateY.value = withTiming(SCREEN_HEIGHT, { duration: 220 });
+      backdropOpacity.value = withTiming(0, { duration: 220 }, (finished) => {
+        if (finished) runOnJS(setMounted)(false);
+      });
+    }
+  }, [visible]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
+  const backStyle = useAnimatedStyle(() => ({
+    opacity: backdropOpacity.value,
+  }));
+
+  const onGesture = (e) => {
+    if (e.nativeEvent.translationY > 0) {
+      translateY.value = e.nativeEvent.translationY;
+    }
+  };
+  const onGestureEnd = () => {
+    if (translateY.value > 150) {
+      runOnJS(onClose)();
+    } else {
+      translateY.value = withTiming(0, { duration: 220 });
+    }
+  };
+
+  if (!visible && !mounted) return null;
+
+  return (
+    <Modal transparent visible={mounted} animationType="none" onRequestClose={onClose} statusBarTranslucent>
+      <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+        <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.5)' }, backStyle]}>
+          <Pressable style={{ flex: 1 }} onPress={onClose} />
+        </Animated.View>
+        <PanGestureHandler onGestureEvent={onGesture} onEnded={onGestureEnd}>
+          <Animated.View style={[{ width: '100%', alignItems: 'center', marginBottom: 20 }, animatedStyle]}>
+          <View style={{
+            width: '95%', height: SCREEN_HEIGHT * 0.38,
+            backgroundColor: colors.cardBackground,
+            borderRadius: 25,
+            borderWidth: 1,
+            borderColor: colors.border,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: -5 },
+            shadowOpacity: 0.3,
+            shadowRadius: 10,
+            elevation: 15,
+            overflow: 'hidden',
+          }}>
+            <View style={{ alignSelf: 'center', paddingVertical: 8 }}>
+              <View style={{ width: 40, height: 5, borderRadius: 10, backgroundColor: colors.border }} />
+            </View>
+            {!editable && (
+              <View style={{ alignItems: 'center', paddingBottom: 10 }}>
+                <Text style={{ color: colors.textMain, fontSize: 17, fontWeight: '700' }} numberOfLines={1}>
+                  {blog?.title || 'Blog Yazısı'}
+                </Text>
+                <Text style={{ color: colors.textSub, fontSize: 13, marginTop: 2 }} numberOfLines={1}>
+                  {formatTimeAgo(blog?.createdAt)}
+                </Text>
+              </View>
+            )}
+            {editable ? (
+              <ScrollView
+                style={{ flex: 1 }}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20, paddingTop: 20 }}
+                keyboardShouldPersistTaps="handled"
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                  <Text style={{ color: colors.textSub, fontSize: 12, fontWeight: '700' }}>BAŞLIK</Text>
+                  <Text style={{ color: '#E63946', fontSize: 14, fontWeight: 'bold', marginLeft: 3 }}>*</Text>
+                </View>
+                <TextInput
+                  value={editTitle}
+                  onChangeText={setEditTitle}
+                  placeholder="Başlık ekle..."
+                  placeholderTextColor={colors.textSub}
+                  maxLength={100}
+                  style={{
+                    backgroundColor: colors.background,
+                    color: colors.textMain,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    borderRadius: 12,
+                    paddingHorizontal: 14,
+                    paddingVertical: 12,
+                    fontSize: 15,
+                    fontWeight: '600',
+                    marginBottom: 16,
+                  }}
+                />
+                <Text style={{ color: colors.textSub, fontSize: 12, fontWeight: '700', marginBottom: 6 }}>İÇERİK</Text>
+                <TextInput
+                  value={editContent}
+                  onChangeText={setEditContent}
+                  placeholder="Konu ekle..."
+                  placeholderTextColor={colors.textSub}
+                  multiline
+                  maxLength={5000}
+                  style={{
+                    backgroundColor: colors.background,
+                    color: colors.textMain,
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                    borderRadius: 12,
+                    paddingHorizontal: 14,
+                    paddingVertical: 12,
+                    fontSize: 15,
+                    minHeight: 110,
+                    textAlignVertical: 'top',
+                  }}
+                />
+              </ScrollView>
+            ) : (
+              <ScrollView
+                style={{ flex: 1 }}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
+              >
+                {!!(blog?.mediaUri && typeof blog.mediaUri === 'string' && blog.mediaUri.length > 5) && (
+                  <View style={{ width: '100%', aspectRatio: 1.6, borderRadius: 14, overflow: 'hidden', marginBottom: 16, backgroundColor: colors.border }}>
+                    {blog.mediaType === 'image' ? (
+                      <Image source={{ uri: blog.mediaUri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                    ) : (
+                      <VideoPlayer videoUri={blog.mediaUri} style={{ width: '100%', height: '100%' }} />
+                    )}
+                  </View>
+                )}
+                <Text style={{ color: colors.textMain, fontSize: 16, lineHeight: 26 }}>
+                  {blog?.content || 'İçerik bulunamadı.'}
+                </Text>
+              </ScrollView>
+            )}
+          </View>
+          {editable && (
+            <>
+              <TouchableOpacity
+                onPress={() => onSave && onSave(editTitle, editContent)}
+                activeOpacity={0.7}
+                disabled={saving}
+                style={{
+                  backgroundColor: colors.primary,
+                  paddingVertical: 18,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: 15,
+                  width: '95%',
+                  alignSelf: 'center',
+                  marginTop: 10,
+                }}
+              >
+                {saving ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>Kaydet</Text>
+                )}
+              </TouchableOpacity>
+            </>
+          )}
+          </Animated.View>
+        </PanGestureHandler>
+      </View>
+    </Modal>
+  );
+}
+
 export default function OtherProfilePage() {
   const navigation = useNavigation();
   const route = useRoute();
@@ -395,6 +582,10 @@ export default function OtherProfilePage() {
   const [schoolLogoUri, setSchoolLogoUri] = useState(null);
   const [selectedProject, setSelectedProject] = useState(null);
   const [sheetVisible, setSheetVisible] = useState(false);
+  const [selectedBlog, setSelectedBlog] = useState(null);
+  const [blogSheetVisible, setBlogSheetVisible] = useState(false);
+  const [blogEditMode, setBlogEditMode] = useState(false);
+  const [savingBlog, setSavingBlog] = useState(false);
   const [overscrollBlur, setOverscrollBlur] = useState(0);
   const [commentModalVisible, setCommentModalVisible] = useState(false);
   const [activePostId, setActivePostId] = useState(null);
@@ -866,6 +1057,48 @@ export default function OtherProfilePage() {
     setTimeout(() => setSelectedProject(null), 350);
   };
 
+  const openBlogSheet = (blog, editable = false) => {
+    setSelectedBlog(blog);
+    setBlogEditMode(editable);
+    setBlogSheetVisible(true);
+  };
+
+  const closeBlogSheet = () => {
+    setBlogSheetVisible(false);
+    setTimeout(() => setSelectedBlog(null), 350);
+  };
+
+  const handleEditBlog = () => {
+    const item = optionsItem;
+    setOptionsItem(null);
+    if (!item || item._tab !== 'Blog') return;
+    openBlogSheet(item, true);
+  };
+
+  const handleSaveBlog = async (newTitle, newContent) => {
+    const blog = selectedBlog;
+    if (!blog || !blog.id) return;
+    if (!newTitle?.trim() || !newContent?.trim()) {
+      Alert.alert('Uyarı', 'Başlık ve içerik boş olamaz.');
+      return;
+    }
+    setSavingBlog(true);
+    try {
+      await updateDoc(doc(db, 'Users', profileUserId || currentUserId, 'blog', blog.id), {
+        title: newTitle.trim(),
+        content: newContent.trim(),
+      });
+      setSavingBlog(false);
+      closeBlogSheet();
+      Toast.show({ type: 'success', text1: 'Başarılı', text2: 'Blog güncellendi.' });
+      fetchTabData();
+    } catch (e) {
+      setSavingBlog(false);
+      console.error('Blog güncelleme hatası:', e);
+      Alert.alert('Hata', 'Blog güncellenirken bir hata oluştu.');
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.centered}>
@@ -1314,13 +1547,12 @@ export default function OtherProfilePage() {
               <View key={item.id} style={styles.card}>
                 <View style={styles.cardHeaderRow}>
                   <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
-                  <TouchableOpacity style={styles.cardOptionsBtn} onPress={(event) => handleOptionsPress(item, event.nativeEvent.pageY)}>
-                    <Text style={styles.cardOptionsText}>···</Text>
-                  </TouchableOpacity>
+                  {isOwnProfile && (
+                    <TouchableOpacity style={styles.cardOptionsBtn} onPress={(event) => handleOptionsPress(item, event.nativeEvent.pageY)}>
+                      <Text style={styles.cardOptionsText}>···</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
-                <Text style={styles.cardContent} numberOfLines={3}>
-                  {selectedTab === 'Projeler' ? (item.readme || 'Açıklama yok') : item.content}
-                </Text>
                 {selectedTab === 'Projeler' && !!item.githubUrl && (
                   <Text style={[styles.githubLink]} numberOfLines={1}>🔗 {item.githubUrl}</Text>
                 )}
@@ -1332,7 +1564,9 @@ export default function OtherProfilePage() {
                     </TouchableOpacity>
                   )}
                   {selectedTab === 'Blog' && (
-                    <Text style={styles.moreBtn}>Devamını Oku →</Text>
+                    <TouchableOpacity onPress={() => openBlogSheet(item)} activeOpacity={0.7}>
+                      <Text style={styles.moreBtn}>Devamını Oku →</Text>
+                    </TouchableOpacity>
                   )}
                 </View>
               </View>
@@ -1350,6 +1584,16 @@ export default function OtherProfilePage() {
         colors={colors}
         isDark={isDark}
       />
+      <BlogSheet
+        blog={selectedBlog}
+        visible={blogSheetVisible}
+        onClose={closeBlogSheet}
+        colors={colors}
+        isDark={isDark}
+        editable={blogEditMode}
+        onSave={handleSaveBlog}
+        saving={savingBlog}
+      />
       <CommentModal
         visible={commentModalVisible}
         onClose={() => { setCommentModalVisible(false); setActivePostId(null); }}
@@ -1361,6 +1605,7 @@ export default function OtherProfilePage() {
         isOwnPost={isOwnProfile}
         onDelete={handleDeleteItem}
         onReport={handleReportItem}
+        onEdit={isOwnProfile && optionsItem?._tab === 'Blog' ? handleEditBlog : null}
         onClose={() => setOptionsItem(null)}
         anchorY={menuAnchorY}
       />
